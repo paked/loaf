@@ -15,7 +15,18 @@ typedef uint8 Instruction;
 
 enum OPCode : Instruction {
   OP_RETURN,
-  OP_CONSTANT
+
+  // Load constant onto stack
+  OP_CONSTANT,
+
+  // Unary negation
+  OP_NEGATE,
+
+  // a # b (where # is an arithmathic operation)
+  OP_ADD,
+  OP_SUBTRACT,
+  OP_MULTIPLY,
+  OP_DIVIDE
 };
 
 typedef int Value;
@@ -62,7 +73,7 @@ struct Hunk {
 
   // NOTE(harrison): Don't store any references to this pointer. It can change
   // unexpectedly.
-  uint8* code;
+  Instruction* code;
   uint32* lines;
 
   Constants constants;
@@ -72,7 +83,7 @@ bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
   if (hunk->capacity < hunk->count + 1) {
     hunk->capacity = HUNK_CAPACITY_GROW(hunk->capacity);
 
-    hunk->code = REALLOC(uint8, hunk->code, hunk->capacity);
+    hunk->code = REALLOC(Instruction, hunk->code, hunk->capacity);
     if (hunk->code == 0) {
       return false;
     }
@@ -98,7 +109,7 @@ int hunk_addConstant(Hunk* hunk, Value val) {
 int hunk_disassembleInstruction(Hunk* hunk, int offset) {
   printf("%04d | %04d | ", hunk->lines[offset], offset);
 
-  uint8 in = hunk->code[offset];
+  Instruction in = hunk->code[offset];
 #define SIMPLE_INSTRUCTION(code) \
   case code: \
     { \
@@ -109,6 +120,12 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
   switch (in) {
     SIMPLE_INSTRUCTION(OP_RETURN);
+    SIMPLE_INSTRUCTION(OP_NEGATE);
+
+    SIMPLE_INSTRUCTION(OP_ADD);
+    SIMPLE_INSTRUCTION(OP_SUBTRACT);
+    SIMPLE_INSTRUCTION(OP_MULTIPLY);
+    SIMPLE_INSTRUCTION(OP_DIVIDE);
 
     case OP_CONSTANT:
       {
@@ -138,13 +155,97 @@ void hunk_disassemble(Hunk* hunk, const char* name) {
   }
 }
 
+#define VM_STACK_MAX (256)
+struct VM {
+  Hunk* hunk;
+
+  Value stack[VM_STACK_MAX];
+  Value* stackTop;
+
+  Instruction* ip;
+};
+
+void vm_load(VM* vm, Hunk* hunk) {
+  vm->hunk = hunk;
+
+  vm->ip = hunk->code;
+
+  vm->stackTop = vm->stack;
+}
+
+void vm_stack_push(VM* vm, Value val) {
+  *vm->stackTop = val;
+
+  vm->stackTop += 1;
+}
+
+Value vm_stack_pop(VM* vm) {
+  vm->stackTop -= 1;
+
+  return *vm->stackTop;
+}
+
+ProgramResult vm_run(VM* vm) {
+#define READ() (*vm->ip++)
+  while (true) {
+    int offset = (int) (vm->ip - vm->hunk->code);
+    hunk_disassembleInstruction(vm->hunk, offset);
+
+    Instruction in = READ();
+
+    switch (in) {
+      case OP_RETURN:
+        {
+          printf("%d\n", vm_stack_pop(vm));
+          return PROGRAM_RESULT_OK;
+        } break;
+      case OP_CONSTANT:
+        {
+          Instruction id = READ();
+          Value val = vm->hunk->constants.values[id];
+
+          vm_stack_push(vm, val);
+        } break;
+      case OP_NEGATE:
+        {
+          vm_stack_push(vm, -(vm_stack_pop(vm)));
+        } break;
+
+#define BINARY_OP(op) \
+  Value b = vm_stack_pop(vm); \
+  Value a = vm_stack_pop(vm); \
+  vm_stack_push(vm, a op b);
+      case OP_ADD:
+        {
+          BINARY_OP(+);
+        } break;
+      case OP_SUBTRACT:
+        {
+          BINARY_OP(-);
+        } break;
+      case OP_MULTIPLY:
+        {
+          BINARY_OP(*);
+        } break;
+      case OP_DIVIDE:
+        {
+          BINARY_OP(/);
+        } break;
+#undef BINARY_OP
+      default:
+        {
+          // vm_setError("Unknown instruction");
+          return PROGRAM_RESULT_RUNTIME_ERROR;
+        } break;
+    }
+  }
+
+  return PROGRAM_RESULT_OK;
+#undef READ
+}
+
 int main(int argc, char** argv) {
   Hunk hunk = {0};
-
-  if (!hunk_write(&hunk, OP_CONSTANT, 0)) {
-    printf("ERROR: could not write chunk data\n");
-    return -1;
-  }
 
   int constant = hunk_addConstant(&hunk, 22);
   if (constant == -1) {
@@ -153,41 +254,64 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  if (!hunk_write(&hunk, constant, 0)) {
+  int line = 0;
+
+  if (!hunk_write(&hunk, OP_CONSTANT, line++)) {
+    printf("ERROR: could not write chunk data\n");
+    return -1;
+  }
+
+  if (!hunk_write(&hunk, constant, line)) {
     printf("ERROR: could not write chunk data\n");
 
     return -1;
   }
 
-  if (!hunk_write(&hunk, OP_RETURN, 1)) {
+  if (!hunk_write(&hunk, OP_NEGATE, line++)) {
     printf("ERROR: could not write chunk data\n");
     return -1;
   }
 
-  hunk_disassemble(&hunk, "main");
+  constant = hunk_addConstant(&hunk, 3);
+  if (constant == -1) {
+    printf("ERROR: could not add constant\n");
 
-  return 0;
-}
+    return -1;
+  }
 
-/*
-int main(int argc, char** argv) {
-  Program program = {0};
-  Hunk hunk = {0};
+  if (!hunk_write(&hunk, OP_CONSTANT, line++)) {
+    printf("ERROR: could not write chunk data\n");
+    return -1;
+  }
 
-  Instruction constant = program_addConstant(&program, 22);
+  if (!hunk_write(&hunk, constant, line)) {
+    printf("ERROR: could not write chunk data\n");
 
-  hunk_write(&hunk, OP_CONSTANT);
-  hunk_write(&hunk, constant);
+    return -1;
+  }
 
-  ProgramResult res = program_execute(&program, &hunk);
+  if (!hunk_write(&hunk, OP_MULTIPLY, line++)) {
+    printf("ERROR: could not write chunk data\n");
+    return -1;
+  }
+
+  if (!hunk_write(&hunk, OP_RETURN, line++)) {
+    printf("ERROR: could not write chunk data\n");
+    return -1;
+  }
+
+  VM vm = {0};
+
+  vm_load(&vm, &hunk);
+
+  ProgramResult res = vm_run(&vm);
 
   if (res != PROGRAM_RESULT_OK) {
-    // printf("%s\n", program_getError(&program));
-
+    printf("Program failed executing...");
     return 1;
   }
 
   printf("Program finished executing...\n");
 
   return 0;
-}*/
+}
