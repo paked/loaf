@@ -1,0 +1,3 @@
+[submodule "vendor/uslib"]
+	path = vendor/uslib
+	url = git@github.com:paked/us.git
