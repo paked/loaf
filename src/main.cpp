@@ -11,6 +11,8 @@ enum TokenType : uint32 {
   TOKEN_ILLEGAL,
   TOKEN_EOF,
 
+  TOKEN_COMMENT,
+
   TOKEN_IDENTIFIER,
 
   TOKEN_NUMBER,
@@ -69,8 +71,8 @@ void scanner_skipWhitespace(Scanner* scn) {
   }
 }
 
-char scanner_peek(Scanner* scn) {
-  return *(scn->head + 1);
+char scanner_peek(Scanner* scn, int amount = 1) {
+  return *(scn->head + amount);
 }
 
 // NOTE(harrison): see EBNF definition of letter above
@@ -118,6 +120,35 @@ Token scanner_readIdentifier(Scanner* scn) {
   return t;
 }
 
+Token scanner_readComment(Scanner* scn) {
+  Token t = {};
+  t.type = TOKEN_COMMENT;
+  t.line = scn->line;
+  t.start = scn->head;
+
+  scn->head += 2;
+  t.len += 2;
+
+  int depth = 1;
+
+  while (*scn->head != '\0') {
+    if (*scn->head == '/' && scanner_peek(scn) == '*') {
+      depth += 1;
+    } else if (*scn->head == '/' && scanner_peek(scn, -1) == '*') {
+      depth -= 1;
+    }
+
+    t.len += 1;
+    scn->head += 1;
+
+    if (depth <= 0) {
+      break;
+    }
+  }
+
+  return t;
+}
+
 Token scanner_getToken(Scanner* scn) {
   scanner_skipWhitespace(scn);
 
@@ -143,6 +174,8 @@ Token scanner_getToken(Scanner* scn) {
             t.type = TOKEN_ASSIGNMENT_DECLARATION;
             t.start = scn->head;
             t.len = 2;
+
+            scn->head += t.len;
           }
         } break;
       case '+':
@@ -150,18 +183,30 @@ Token scanner_getToken(Scanner* scn) {
           t.type = TOKEN_ADD;
           t.start = scn->head;
           t.len = 1;
+
+          scn->head += t.len;
         } break;
       case '(':
         {
           t.type = TOKEN_BRACKET_OPEN;
           t.start = scn->head;
           t.len = 1;
+
+          scn->head += t.len;
         } break;
       case ')':
         {
           t.type = TOKEN_BRACKET_CLOSE;
           t.start = scn->head;
           t.len = 1;
+
+          scn->head += t.len;
+        } break;
+      case '/':
+        {
+          if (scanner_peek(scn) == '*') {
+            t = scanner_readComment(scn);
+          }
         } break;
       default:
         {
@@ -169,7 +214,6 @@ Token scanner_getToken(Scanner* scn) {
         } break;
     }
 
-    scn->head += t.len;
   }
 
   return t;
@@ -241,6 +285,28 @@ int test_bytecode() {
 
   int line = 0;
 
+  int local1 = hunk_addLocal(&hunk, 10);
+  int local2 = hunk_addLocal(&hunk, 5);
+
+  hunk_write(&hunk, OP_GET_LOCAL, line);
+  hunk_write(&hunk, local1, line++);
+  hunk_write(&hunk, OP_GET_LOCAL, line);
+  hunk_write(&hunk, local2, line++);
+
+  hunk_write(&hunk, OP_MULTIPLY, line++);
+
+  int constant = hunk_addConstant(&hunk, 25);
+
+  hunk_write(&hunk, OP_CONSTANT, line);
+  hunk_write(&hunk, constant, line++);
+
+  hunk_write(&hunk, OP_NEGATE, line++);
+
+  hunk_write(&hunk, OP_ADD, line++);
+
+  hunk_write(&hunk, OP_RETURN, line++);
+
+  /*
   int constant = hunk_addConstant(&hunk, 22);
   if (constant == -1) {
     printf("ERROR: could not add constant\n");
@@ -290,7 +356,7 @@ int test_bytecode() {
   if (!hunk_write(&hunk, OP_RETURN, line++)) {
     printf("ERROR: could not write chunk data\n");
     return -1;
-  }
+  }*/
 
   VM vm = {0};
 
@@ -299,7 +365,7 @@ int test_bytecode() {
   ProgramResult res = vm_run(&vm);
 
   if (res != PROGRAM_RESULT_OK) {
-    printf("Program failed executing...");
+    printf("Program failed executing...\n");
     return 1;
   }
 

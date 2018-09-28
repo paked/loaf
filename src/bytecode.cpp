@@ -3,6 +3,9 @@ typedef uint8 Instruction;
 enum OPCode : Instruction {
   OP_RETURN,
 
+  OP_SET_LOCAL,
+  OP_GET_LOCAL,
+
   // Load constant onto stack
   OP_CONSTANT,
 
@@ -64,6 +67,7 @@ struct Hunk {
   uint32* lines;
 
   Constants constants;
+  Constants locals;
 };
 
 bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
@@ -93,6 +97,10 @@ int hunk_addConstant(Hunk* hunk, Value val) {
   return constants_add(&hunk->constants, val);
 }
 
+int hunk_addLocal(Hunk* hunk, Value val) {
+  return constants_add(&hunk->locals, val);
+}
+
 int hunk_disassembleInstruction(Hunk* hunk, int offset) {
   printf("%04d | %04d | ", hunk->lines[offset], offset);
 
@@ -103,7 +111,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
       printf("%s\n", #code ); \
 \
       return offset + 1; \
-    } break; \
+    } break;
 
   switch (in) {
     SIMPLE_INSTRUCTION(OP_RETURN);
@@ -117,6 +125,18 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     case OP_CONSTANT:
       {
         printf("%s %d\n", "OP_CONSTANT", hunk->constants.values[hunk->code[offset + 1]]);
+
+        return offset + 2;
+      } break;
+    case OP_GET_LOCAL:
+      {
+        printf("%s %d\n", "OP_GET_LOCAL", hunk->locals.values[hunk->code[offset + 1]]);
+
+        return offset + 2;
+      } break;
+    case OP_SET_LOCAL:
+      {
+        printf("%s %d\n", "OP_SET_LOCAL", hunk->code[offset + 1]);
 
         return offset + 2;
       } break;
@@ -149,6 +169,7 @@ enum ProgramResult : uint32 {
 };
 
 #define VM_STACK_MAX (256)
+#define VM_LOCALS_MAX (256)
 struct VM {
   Hunk* hunk;
 
@@ -190,12 +211,27 @@ ProgramResult vm_run(VM* vm) {
       case OP_RETURN:
         {
           printf("%d\n", vm_stack_pop(vm));
+
           return PROGRAM_RESULT_OK;
         } break;
       case OP_CONSTANT:
         {
           Instruction id = READ();
           Value val = vm->hunk->constants.values[id];
+
+          vm_stack_push(vm, val);
+        } break;
+      case OP_SET_LOCAL:
+        {
+          Instruction id = READ();
+
+          // TODO(harrison): Store local variables in the VM, not in a Hunk
+          vm->hunk->locals.values[id] = vm_stack_pop(vm);
+        } break;
+      case OP_GET_LOCAL:
+        {
+          Instruction id = READ();
+          Value val = vm->hunk->locals.values[id];
 
           vm_stack_push(vm, val);
         } break;
