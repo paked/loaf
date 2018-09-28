@@ -24,6 +24,8 @@ VENDOR_DIR=$PROJECT_DIR/vendor
 
 USLIB_FLAGS="-I$VENDOR_DIR/uslib"
 
+ls $SRC_DIR
+
 GCC="gcc"
 GPP="g++ -Wall -Werror -std=c++11"
 
@@ -33,7 +35,7 @@ mkdir -p $BUILD_DIR
 pushd $BUILD_DIR
 
 echo "Building program..."
-$GPP -o loaf $SRC_DIR/main.cpp $USLIB_FLAGS
+$GPP -o loaf -I$SRC_DIR $SRC_DIR/main.cpp $USLIB_FLAGS
 
 echo "Done!"
 

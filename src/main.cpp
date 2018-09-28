@@ -5,247 +5,241 @@
 
 #define REALLOC(Type, ptr, count) ((Type*) realloc(ptr, count * sizeof(Type)))
 
-enum ProgramResult : uint32 {
-  PROGRAM_RESULT_OK,
-  PROGRAM_RESULT_COMPILE_ERROR,
-  PROGRAM_RESULT_RUNTIME_ERROR
+#include <bytecode.cpp>
+
+enum TokenType : uint32 {
+  TOKEN_ILLEGAL,
+  TOKEN_EOF,
+
+  TOKEN_IDENTIFIER,
+
+  TOKEN_NUMBER,
+
+  TOKEN_ASSIGNMENT_DECLARATION,
+
+  TOKEN_ADD,
+  TOKEN_SUBTRACT,
+  TOKEN_MULTIPLY,
+  TOKEN_DIVIDE,
+
+  TOKEN_BRACKET_OPEN,
+  TOKEN_BRACKET_CLOSE,
 };
 
-typedef uint8 Instruction;
+struct Token {
+  TokenType type;
 
-enum OPCode : Instruction {
-  OP_RETURN,
-
-  // Load constant onto stack
-  OP_CONSTANT,
-
-  // Unary negation
-  OP_NEGATE,
-
-  // a # b (where # is an arithmathic operation)
-  OP_ADD,
-  OP_SUBTRACT,
-  OP_MULTIPLY,
-  OP_DIVIDE
+  char* start;
+  int len;
+  int line;
 };
 
-typedef int Value;
 
-// Constants keeps track of all the available constants in a program. Zero is initialisation.
-// TODO(harrison): force constants count to fit within the maximum addressable space by opcodes (256)
-#define CONSTANTS_CAPACITY_GROW(c) ( ((c) < 8) ? 8 : (c)*2 )
-struct Constants {
-  int count;
-  int capacity;
+struct Scanner {
+  char* source;
+  char* head;
 
-  // NOTE(harrison): Don't store any references to this pointer. It can change
-  // unexpectedly.
-  Value* values;
+  int line;
 };
 
-// returns -1 on failure
-int constants_add(Constants* constants, Value val) {
-  if (constants->capacity < constants->count + 1) {
-    constants->capacity = CONSTANTS_CAPACITY_GROW(constants->capacity);
-
-    constants->values = REALLOC(Value, constants->values, constants->capacity);
-
-    if (constants->values == 0) {
-      return -1;
-    }
-  }
-
-  *(constants->values + constants->count) = val;
-
-  constants->count += 1;
-
-  return constants->count - 1;
+void scanner_load(Scanner* scn, char* buf) {
+  scn->source = buf;
+  scn->head = buf;
 }
 
-// Hunk represents a section of Loaf bytecode from a file/module/whatever
-// distinction I decide to make. Zero is initialisation. There is no explicit
-// free function as Hunk's are expected to last the duration of the program, so
-// the operating system can dispose of their memory much better than us.
-#define HUNK_CAPACITY_GROW(c) ( ((c) < 8) ? 8 : (c)*2 )
-struct Hunk {
-  int count;
-  int capacity;
+void scanner_skipWhitespace(Scanner* scn) {
+  while (*scn->head != '\0') {
+    char c = *scn->head;
 
-  // NOTE(harrison): Don't store any references to this pointer. It can change
-  // unexpectedly.
-  Instruction* code;
-  uint32* lines;
-
-  Constants constants;
-};
-
-bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
-  if (hunk->capacity < hunk->count + 1) {
-    hunk->capacity = HUNK_CAPACITY_GROW(hunk->capacity);
-
-    hunk->code = REALLOC(Instruction, hunk->code, hunk->capacity);
-    if (hunk->code == 0) {
-      return false;
+    if (us_isNewline(c)) {
+      scn->head += 1;
+      
+      scn->line += 1;
+      
+      continue;
     }
 
-    hunk->lines = REALLOC(uint32, hunk->lines, hunk->capacity);
-    if (hunk->lines == 0) {
-      return false;
+    if (us_isSpace(c)) {
+      scn->head += 1;
+
+      continue;
     }
-  }
 
-  *(hunk->code + hunk->count) = in;
-  *(hunk->lines + hunk->count) = line;
-
-  hunk->count += 1;
-
-  return true;
-}
-
-int hunk_addConstant(Hunk* hunk, Value val) {
-  return constants_add(&hunk->constants, val);
-}
-
-int hunk_disassembleInstruction(Hunk* hunk, int offset) {
-  printf("%04d | %04d | ", hunk->lines[offset], offset);
-
-  Instruction in = hunk->code[offset];
-#define SIMPLE_INSTRUCTION(code) \
-  case code: \
-    { \
-      printf("%s\n", #code ); \
-\
-      return offset + 1; \
-    } break; \
-
-  switch (in) {
-    SIMPLE_INSTRUCTION(OP_RETURN);
-    SIMPLE_INSTRUCTION(OP_NEGATE);
-
-    SIMPLE_INSTRUCTION(OP_ADD);
-    SIMPLE_INSTRUCTION(OP_SUBTRACT);
-    SIMPLE_INSTRUCTION(OP_MULTIPLY);
-    SIMPLE_INSTRUCTION(OP_DIVIDE);
-
-    case OP_CONSTANT:
-      {
-        printf("%s %d\n", "OP_CONSTANT", hunk->constants.values[hunk->code[offset + 1]]);
-
-        return offset + 2;
-      } break;
-
-    default:
-      {
-        printf("Unknown opcode: %d\n", in);
-      };
-  }
-
-  return offset + 1;
-
-#undef SIMPLE_INSTRUCTION
-}
-
-void hunk_disassemble(Hunk* hunk, const char* name) {
-  printf("=== %s ===\n", name);
-
-  int i = 0;
-
-  while (i < hunk->count) {
-    i += hunk_disassembleInstruction(hunk, i);
+    return;
   }
 }
 
-#define VM_STACK_MAX (256)
-struct VM {
-  Hunk* hunk;
-
-  Value stack[VM_STACK_MAX];
-  Value* stackTop;
-
-  Instruction* ip;
-};
-
-void vm_load(VM* vm, Hunk* hunk) {
-  vm->hunk = hunk;
-
-  vm->ip = hunk->code;
-
-  vm->stackTop = vm->stack;
+char scanner_peek(Scanner* scn) {
+  return *(scn->head + 1);
 }
 
-void vm_stack_push(VM* vm, Value val) {
-  *vm->stackTop = val;
-
-  vm->stackTop += 1;
+// NOTE(harrison): see EBNF definition of letter above
+bool scanner_isLetter(Scanner* scn) {
+  return us_isLetter(*scn->head) || *scn->head == '_';
 }
 
-Value vm_stack_pop(VM* vm) {
-  vm->stackTop -= 1;
+Token scanner_readNumber(Scanner* scn) {
+  Token t = {};
+  t.type = TOKEN_NUMBER;
+  t.line = scn->line;
+  t.start = scn->head;
 
-  return *vm->stackTop;
+  while (*scn->head != '\0') {
+    if (!us_isDigit(*scn->head)) {
+      break;
+    }
+
+    t.len += 1;
+    scn->head += 1;
+  }
+
+  return t;
 }
 
-ProgramResult vm_run(VM* vm) {
-#define READ() (*vm->ip++)
-  while (true) {
-    int offset = (int) (vm->ip - vm->hunk->code);
-    hunk_disassembleInstruction(vm->hunk, offset);
+Token scanner_readIdentifier(Scanner* scn) {
+  Token t = {};
+  t.type = TOKEN_IDENTIFIER;
+  t.line = scn->line;
+  t.start = scn->head;
 
-    Instruction in = READ();
+  while (*scn->head != '\0') {
+    if (!(scanner_isLetter(scn) || us_isDigit(*scn->head))) {
+      break;
+    }
 
-    switch (in) {
-      case OP_RETURN:
-        {
-          printf("%d\n", vm_stack_pop(vm));
-          return PROGRAM_RESULT_OK;
-        } break;
-      case OP_CONSTANT:
-        {
-          Instruction id = READ();
-          Value val = vm->hunk->constants.values[id];
+    if (t.len == 0 && us_isDigit(*scn->head)) {
+        break;
+    }
 
-          vm_stack_push(vm, val);
-        } break;
-      case OP_NEGATE:
-        {
-          vm_stack_push(vm, -(vm_stack_pop(vm)));
-        } break;
+    t.len += 1;
+    scn->head += 1;
+  }
 
-#define BINARY_OP(op) \
-  Value b = vm_stack_pop(vm); \
-  Value a = vm_stack_pop(vm); \
-  vm_stack_push(vm, a op b);
-      case OP_ADD:
+  return t;
+}
+
+Token scanner_getToken(Scanner* scn) {
+  scanner_skipWhitespace(scn);
+
+  // Start with an illegal token
+  Token t = {};
+  t.line = scn->line;
+
+  if (*scn->head == '\0') {
+    t.type = TOKEN_EOF;
+  } else if (us_isDigit(*scn->head)) {
+    t = scanner_readNumber(scn);
+/*  
+    } else if (scanner_isKeyword(scn)) {
+    t = scanner_readKeyword();
+*/
+  } else if (scanner_isLetter(scn)) {
+    t = scanner_readIdentifier(scn);
+  } else {
+    switch (*scn->head) {
+      case ':':
         {
-          BINARY_OP(+);
+          if (scanner_peek(scn) == '=') {
+            t.type = TOKEN_ASSIGNMENT_DECLARATION;
+            t.start = scn->head;
+            t.len = 2;
+          }
         } break;
-      case OP_SUBTRACT:
+      case '+':
         {
-          BINARY_OP(-);
+          t.type = TOKEN_ADD;
+          t.start = scn->head;
+          t.len = 1;
         } break;
-      case OP_MULTIPLY:
+      case '(':
         {
-          BINARY_OP(*);
+          t.type = TOKEN_BRACKET_OPEN;
+          t.start = scn->head;
+          t.len = 1;
         } break;
-      case OP_DIVIDE:
+      case ')':
         {
-          BINARY_OP(/);
+          t.type = TOKEN_BRACKET_CLOSE;
+          t.start = scn->head;
+          t.len = 1;
         } break;
-#undef BINARY_OP
       default:
         {
-          // vm_setError("Unknown instruction");
-          return PROGRAM_RESULT_RUNTIME_ERROR;
+          printf("Something is broken!\n");
         } break;
     }
+
+    scn->head += t.len;
   }
 
-  return PROGRAM_RESULT_OK;
-#undef READ
+  return t;
 }
 
+// letter = ('a'...'z' | 'A'...'Z' | '_')
+// identifier = letter { letter | number }
+//  eg. `exampleThing`, `exampleThing2`, `_thingThing`
+
+int test_bytecode();
+
 int main(int argc, char** argv) {
+  FILE* f = fopen("example.ls", "rb");
+  if (f == 0) {
+    printf("ERROR: can't open file\n");
+
+    return -1;
+  }
+
+  fseek(f, 0L, SEEK_END);
+  psize fSize = ftell(f);
+  rewind(f);
+
+  char* buffer = (char*) malloc(fSize + 1);
+  if (buffer == 0) {
+    printf("ERROR: not enough memory to read file\n");
+
+    return -1;
+  }
+
+  psize bytesRead = fread(buffer, sizeof(char), fSize, f);
+
+  if (bytesRead != fSize) {
+    printf("ERROR: could not read file into memory\n");
+
+    return -1;
+  }
+
+  buffer[bytesRead] = '\0';
+
+  fclose(f);
+
+  Scanner scanner = {0};
+
+  scanner_load(&scanner, buffer);
+
+  Token t;
+  while (true) {
+    t = scanner_getToken(&scanner);
+
+    if (t.type == TOKEN_ILLEGAL) {
+      printf("ERROR lexing code\n");
+
+      break;
+    } else if (t.type == TOKEN_EOF) {
+      printf("Got through all tokens\n");
+
+      break;
+    }
+
+    printf("val: %.*s\n", t.len, t.start);
+  }
+
+  return test_bytecode();
+}
+
+int test_bytecode() {
   Hunk hunk = {0};
+
+  int line = 0;
 
   int constant = hunk_addConstant(&hunk, 22);
   if (constant == -1) {
@@ -253,8 +247,6 @@ int main(int argc, char** argv) {
 
     return -1;
   }
-
-  int line = 0;
 
   if (!hunk_write(&hunk, OP_CONSTANT, line++)) {
     printf("ERROR: could not write chunk data\n");
