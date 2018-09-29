@@ -11,10 +11,89 @@
 #include <bytecode.cpp>
 
 // letter = ('a'...'z' | 'A'...'Z' | '_')
+// number = {'0'...'9'}
 // identifier = letter { letter | number }
+//
+// operator = "+"
+//
+// term = identifier | number | "(" numerical_expression ")"
+// expression = term [ operator term ]
+//
+// function_call = identifier "(" expression ")"
+//
+// assignment = identifier ":=" expression
+// statement = assignment | function_call
+
 //  eg. `exampleThing`, `exampleThing2`, `_thingThing`
 
 array_for(Token);
+
+struct Parser {
+  array(Token) tokens;
+  Token* head;
+};
+
+/*
+       ROOT
+        |
+    ASSIGNMENT
+    |        |
+   left     right
+    |        |
+identifier constant
+    |        |
+   "x"       10
+
+assignment->right->push (instructions to push right side onto stack)
+assignment->left->retrieve (retrieve variable type (local vs global) and relevant get/set op codes, get variable identifier from opcodes and write those instructions to set a variable to the top value of the stack)
+*/
+
+enum ASTNodeType : uint32 {
+  AST_NODE_ROOT,
+
+  AST_NODE_VALUE,
+  AST_NODE_IDENTIFIER,
+
+  AST_NODE_DECLARATION,
+  AST_NODE_ASSIGNMENT
+};
+
+struct ASTNode_Root {};
+struct ASTNode_Declaration { ASTNode* left, ASTNode* right };
+
+struct ASTNode {
+  ASTNodeType type;
+
+  union {
+
+  };
+};
+
+void parser_load(Parser* p, array(Token) tokens) {
+  p->tokens = tokens;
+
+  p->head = p->tokens;
+}
+
+bool parser_parseStatement(Parser* p) {
+  return false;
+}
+
+void parser_parse(Parser* p) {
+  while (p->head->type != TOKEN_EOF) {
+    printf("iterating\n");
+
+    if (p->head->type == TOKEN_IDENTIFIER) {
+      parser_parseStatement(p);
+    } else {
+      printf("ERROR: could not parse tokens\n");
+
+      break;
+    }
+
+    p->head += 1;
+  }
+}
 
 int test_bytecode();
 
@@ -63,10 +142,6 @@ int main(int argc, char** argv) {
       printf("ERROR lexing code\n");
 
       break;
-    } else if (t.type == TOKEN_EOF) {
-      printf("Got through all tokens\n");
-
-      break;
     } else if (t.type == TOKEN_COMMENT) {
       continue;
     }
@@ -74,9 +149,18 @@ int main(int argc, char** argv) {
     array_Token_add(&tokens, t);
 
     printf("val: %.*s\n", t.len, t.start);
+
+    if (t.type == TOKEN_EOF) {
+      printf("Got through all tokens\n");
+
+      break;
+    }
   }
 
-  printf("have %zu tokens\n", array_count(tokens));
+  Parser parser = {};
+  parser_load(&parser, tokens);
+
+  parser_parse(&parser);
 
   return test_bytecode();
 }
@@ -89,21 +173,27 @@ int test_bytecode() {
   int local1 = hunk_addLocal(&hunk, 10);
   int local2 = hunk_addLocal(&hunk, 5);
 
+  int constant = hunk_addConstant(&hunk, 25);
+  hunk_write(&hunk, OP_CONSTANT, line);
+  hunk_write(&hunk, constant, line++);
+
+  hunk_write(&hunk, OP_SET_LOCAL, line);
+  hunk_write(&hunk, local1, line++);
+
+  constant = hunk_addConstant(&hunk, 10);
+  hunk_write(&hunk, OP_CONSTANT, line);
+  hunk_write(&hunk, constant, line++);
+
+  hunk_write(&hunk, OP_SET_LOCAL, line);
+  hunk_write(&hunk, local2, line++);
+
   hunk_write(&hunk, OP_GET_LOCAL, line);
   hunk_write(&hunk, local1, line++);
+
   hunk_write(&hunk, OP_GET_LOCAL, line);
   hunk_write(&hunk, local2, line++);
 
   hunk_write(&hunk, OP_MULTIPLY, line++);
-
-  int constant = hunk_addConstant(&hunk, 25);
-
-  hunk_write(&hunk, OP_CONSTANT, line);
-  hunk_write(&hunk, constant, line++);
-
-  hunk_write(&hunk, OP_NEGATE, line++);
-
-  hunk_write(&hunk, OP_ADD, line++);
 
   hunk_write(&hunk, OP_RETURN, line++);
 

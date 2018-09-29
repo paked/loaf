@@ -1,12 +1,11 @@
 x := 10
-y := 20
 
-print(x + y + 100)
-
-w := 500
+print(x)
 
 /*
 BYTECODE BREAKDOWN:
+
+OP_CONSTANT
 
 OP_CONSTANT 10
 OP_SET_LOCAL 0
