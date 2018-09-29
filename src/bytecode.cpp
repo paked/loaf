@@ -12,7 +12,7 @@ enum OPCode : Instruction {
   // Unary negation
   OP_NEGATE,
 
-  // a # b (where # is an arithmathic operation)
+  // Binary expressions: a # b (where # is an arithmathic operation)
   OP_ADD,
   OP_SUBTRACT,
   OP_MULTIPLY,

@@ -27,7 +27,7 @@ USLIB_FLAGS="-I$VENDOR_DIR/uslib"
 ls $SRC_DIR
 
 GCC="gcc"
-GPP="g++ -Wall -Werror -std=c++11"
+GPP="g++ -Wall -Werror -std=c++11 -g"
 
 START_TIME=$(date +%s)
 
