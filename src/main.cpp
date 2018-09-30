@@ -42,8 +42,6 @@ array_for(Variable);
 // TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
 struct Scope {
   array(Variable) variables;
-
-  Scope* parent;
 };
 
 void scope_init(Scope* s) {
@@ -106,6 +104,7 @@ void scope_set(Scope* s, Variable var) {
 
 
 enum ASTNodeType : uint32 {
+  AST_NODE_INVALID,
   AST_NODE_ROOT,
 
   AST_NODE_ASSIGNMENT,
@@ -225,12 +224,19 @@ ASTNode ast_makeAssignment(ASTNode left, ASTNode right) {
 // TODO(harrison): properly propogate errors
 bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
   switch (node->type) {
+    case AST_NODE_INVALID:
+      {
+        printf("reached an invalid source path\n");
+        return false;
+      } break;
     case AST_NODE_ROOT:
       {
         for (psize i = 0; i < array_count(node->root.children); i++) {
           ASTNode* child = node->root.children[i];
 
-          ast_writeBytecode(child, hunk, scope);
+          if (!ast_writeBytecode(child, hunk, scope)) {
+            return false;
+          }
         }
       } break;
     case AST_NODE_ASSIGNMENT:
@@ -242,7 +248,9 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(right->type == AST_NODE_NUMBER);
 
         // write instructions to push right side onto stack
-        ast_writeBytecode(right, hunk, scope);
+        if (!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
 
         if (!scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
           printf("ERROR: variable doesn't exist!\n");
@@ -273,7 +281,9 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(right->type == AST_NODE_NUMBER);
 
         // write instructions to push right side onto stack
-        ast_writeBytecode(right, hunk, scope);
+        if (!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
 
         if (scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
           printf("ERROR: variable already exists!\n");
@@ -367,7 +377,7 @@ void parser_advance(Parser* p) {
   p->head += 1;
 }
 
-bool parser_parseStatement(Parser* p, ASTNode* parent) {
+bool parser_parseStatement(Parser* p, ASTNode* node) {
   printf("beginning parse statemetn\n");
 
   Token tIdent;
@@ -386,9 +396,7 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
 
         ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
 
-        ASTNode assignmentDeclaration = ast_makeAssignmentDeclaration(ident, val);
-
-        ast_root_add(parent, assignmentDeclaration);
+        *node = ast_makeAssignmentDeclaration(ident, val);
 
         printf("parsed assdecl\n");
         return true;
@@ -402,11 +410,14 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
 
         ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
 
-        ASTNode assignment = ast_makeAssignment(ident, val);
-
-        ast_root_add(parent, assignment);
+        *node = ast_makeAssignment(ident, val);
       }
-    } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+
+      printf("parsed ass\n");
+
+      return true;
+    }
+    /* else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
       parser_advance(p);
 
       // TODO(harrison): parse expression
@@ -423,7 +434,7 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
           return true;
         }
       }
-    }
+    }*/
 
     Token t = *p->head;
 
@@ -434,23 +445,39 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
   return false;
 }
 
+typedef bool (*ParseFunction)(Parser* p, ASTNode* node);
+
+ParseFunction parseFunctions[] = {parser_parseStatement};
+psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
+
 bool parser_parse(Parser* p) {
   p->root = ast_makeRoot();
 
   while (p->head->type != TOKEN_EOF) {
     printf("iterating on %.*s %d\n", p->head->len, p->head->start, p->head->type);
-    if (parser_expect(p, TOKEN_IDENTIFIER)) {
-      if (parser_parseStatement(p, &p->root)) {
-        continue;
-      }
 
-      continue;
+    ASTNode node = {};
+
+    for (psize i = 0; i < parseFunctionsLen; i++) {
+      if (parseFunctions[i](p, &node)) {
+        printf("Parsed a statement\n!");
+
+        break;
+      }
     }
 
-    printf("Syntax error: Unknown token %.*s (%d) on line %d\n", p->head->len, p->head->start, p->head->type, p->head->line);
+    if (!parser_expect(p, TOKEN_SEMICOLON)) {
+      printf("Syntax error: Expected semicolon but did not find one\n");
 
-    return false;
+      return false;
+    }
+
+    parser_advance(p);
+
+    ast_root_add(&p->root, node);
   }
+
+  printf("finished building AST\n");
 
   Scope scope = {};
   scope_init(&scope);

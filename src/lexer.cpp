@@ -2,6 +2,8 @@ enum TokenType : uint32 {
   TOKEN_ILLEGAL,
   TOKEN_EOF,
 
+  TOKEN_SEMICOLON,
+
   TOKEN_COMMENT,
 
   TOKEN_IDENTIFIER,
@@ -176,6 +178,14 @@ Token scanner_getToken(Scanner* scn) {
 
             scn->head += t.len;
           }
+        } break;
+      case ';':
+        {
+          t.type = TOKEN_SEMICOLON;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
         } break;
       case '+':
         {
