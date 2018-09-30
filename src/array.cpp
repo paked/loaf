@@ -30,8 +30,8 @@ struct ArrayHeader {
 // to add elements to previously initialised array.
 //
 // I can't think of a way to un-macro it right now, so it's going to stay as is.
-#define array_for(Type) \
-Type* array_ ## Type ## _init() { \
+#define array_for_name(Type, name) \
+Type* array_ ## name ## _init() { \
   int initialCapacity = ARRAY_CAPACITY_GROW(0); \
 \
   ArrayHeader* header = (ArrayHeader*) realloc(0, sizeof(ArrayHeader) + sizeof(Type) * initialCapacity); \
@@ -42,7 +42,7 @@ Type* array_ ## Type ## _init() { \
 } \
 \
 \
-void array_## Type ## _add (Type** array, Type value) { \
+void array_## name ## _add (Type** array, Type value) { \
   ArrayHeader* header = array_header(*array); \
 \
   if (header->capacity < header->count + 1) { \
@@ -55,3 +55,5 @@ void array_## Type ## _add (Type** array, Type value) { \
   (*array)[header->count] = value; \
   header->count += 1; \
 }
+
+#define array_for(Type) array_for_name(Type, Type)

@@ -26,11 +26,106 @@
 
 //  eg. `exampleThing`, `exampleThing2`, `_thingThing`
 
+enum ASTNodeType : uint32 {
+  AST_NODE_ROOT,
+  AST_NODE_ASSIGNMENT_DECLARATION,
+
+  AST_NODE_IDENTIFIER,
+  AST_NODE_NUMBER
+};
+
+struct ASTNode;
+
+array_for_name(ASTNode*, ASTNodep);
+struct ASTNode_Root {
+  array(ASTNode*) children;
+};
+
+struct ASTNode_AssignmentDeclaration {
+  ASTNode *left; // Must be an identifier
+  ASTNode *right; // Must be an expression (which returns a number)
+};
+
+struct ASTNode_Identifier {
+  Token token;
+};
+
+struct ASTNode_Number {
+  int number;
+};
+
+struct ASTNode {
+  ASTNodeType type;
+
+  union {
+    ASTNode_Root root;
+    ASTNode_AssignmentDeclaration assignmentDeclaration;
+
+    ASTNode_Identifier identifier;
+    ASTNode_Number number;
+  };
+};
+
 array_for(Token);
 
 struct Parser {
   array(Token) tokens;
   Token* head;
+
+  Hunk hunk;
+
+  ASTNode root;
+};
+
+ASTNode ast_makeRoot() {
+  ASTNode node = {};
+  node.type = AST_NODE_ROOT;
+
+  node.root.children = array_ASTNodep_init();
+
+  return node;
+}
+
+ASTNode ast_makeIdentifier(Token t) {
+  ASTNode node = {};
+  node.type = AST_NODE_IDENTIFIER;
+  node.identifier.token = t;
+
+  return node;
+};
+
+void ast_root_add(ASTNode* parent, ASTNode child) {
+  assert(parent->type == AST_NODE_ROOT);
+
+  ASTNode* c = (ASTNode*) malloc(sizeof(child));
+  *c = child;
+
+  array_ASTNodep_add(&parent->root.children, c);
+}
+
+ASTNode ast_makeNumber(int n) {
+  ASTNode node = {};
+  node.type = AST_NODE_NUMBER;
+  node.number.number = n;
+
+  return node;
+}
+
+ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right) {
+  ASTNode node = {};
+  node.type = AST_NODE_ASSIGNMENT_DECLARATION;
+
+  // TODO(harrison): free!
+  ASTNode* l = (ASTNode*) malloc(sizeof(left));
+  ASTNode* r = (ASTNode*) malloc(sizeof(right));
+
+  *l = left;
+  *r = right;
+
+  node.assignmentDeclaration.left = l;
+  node.assignmentDeclaration.right = r;
+
+  return node;
 };
 
 /*
@@ -48,43 +143,103 @@ assignment->right->push (instructions to push right side onto stack)
 assignment->left->retrieve (retrieve variable type (local vs global) and relevant get/set op codes, get variable identifier from opcodes and write those instructions to set a variable to the top value of the stack)
 */
 
-enum ASTNodeType : uint32 {
-  AST_NODE_ROOT,
-
-  AST_NODE_VALUE,
-  AST_NODE_IDENTIFIER,
-
-  AST_NODE_DECLARATION,
-  AST_NODE_ASSIGNMENT
-};
-
-struct ASTNode_Root {};
-struct ASTNode_Declaration { ASTNode* left, ASTNode* right };
-
-struct ASTNode {
-  ASTNodeType type;
-
-  union {
-
-  };
-};
-
-void parser_load(Parser* p, array(Token) tokens) {
+void parser_init(Parser* p, array(Token) tokens) {
   p->tokens = tokens;
 
   p->head = p->tokens;
+  p->hunk = {};
 }
 
-bool parser_parseStatement(Parser* p) {
+bool parser_expect(Parser* p, TokenType type, Token* tok = 0) {
+  // TODO(harrison): skip comment tokens
+  
+  if (p->head->type != type) {
+    printf("did not match %.*s (head:%d vs want:%d)\n", p->head->len, p->head->start, p->head->type, type);
+
+    return false;
+  }
+
+  if (tok != 0) {
+    *tok = *p->head;
+  }
+
+  printf("matched %.*s %d\n", p->head->len, p->head->start, p->head->type);
+
+  return true;
+}
+
+void parser_advance(Parser* p) {
+  p->head += 1;
+}
+
+bool parser_parseStatement(Parser* p, ASTNode* parent) {
+  printf("beginning parse statemetn\n");
+
+  Token tIdent;
+  if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
+    parser_advance(p);
+
+    ASTNode ident = ast_makeIdentifier(tIdent);
+
+    if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION)) {
+      parser_advance(p);
+
+      // TODO(harrison): parse expression
+      Token tVal;
+      if (parser_expect(p, TOKEN_NUMBER, &tVal)) {
+        parser_advance(p);
+
+        ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
+
+        ASTNode assignmentDeclaration = ast_makeAssignmentDeclaration(ident, val);
+
+        ast_root_add(parent, assignmentDeclaration);
+
+        printf("parsed assdecl\n");
+        return true;
+      }
+    } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+      parser_advance(p);
+
+      // TODO(harrison): parse expression
+      Token tIdentVal;
+
+      if (parser_expect(p, TOKEN_IDENTIFIER, &tIdentVal)) {
+        parser_advance(p);
+        if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+          parser_advance(p);
+
+          printf("parsed function call\n");
+          // TODO(harrison): add function call node to tree
+
+          return true;
+        }
+      }
+    }
+
+    Token t = *p->head;
+
+    printf("%.*s %d\n", t.len, t.start, t.type);
+  }
+
+  printf("failed parse statemetn\n");
   return false;
 }
 
 void parser_parse(Parser* p) {
-  while (p->head->type != TOKEN_EOF) {
-    printf("iterating\n");
+  p->root = ast_makeRoot();
 
-    if (p->head->type == TOKEN_IDENTIFIER) {
-      parser_parseStatement(p);
+  while (p->head->type != TOKEN_EOF) {
+    printf("iterating on %.*s %d\n", p->head->len, p->head->start, p->head->type);
+    if (parser_expect(p, TOKEN_IDENTIFIER)) {
+      if (!parser_parseStatement(p, &p->root)) {
+        printf("unknown statement\n");
+        break;
+      }
+
+      printf("parsed statement correctly\n");
+
+      continue;
     } else {
       printf("ERROR: could not parse tokens\n");
 
@@ -158,7 +313,7 @@ int main(int argc, char** argv) {
   }
 
   Parser parser = {};
-  parser_load(&parser, tokens);
+  parser_init(&parser, tokens);
 
   parser_parse(&parser);
 
