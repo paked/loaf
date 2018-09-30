@@ -66,17 +66,6 @@ struct ASTNode {
   };
 };
 
-array_for(Token);
-
-struct Parser {
-  array(Token) tokens;
-  Token* head;
-
-  Hunk hunk;
-
-  ASTNode root;
-};
-
 ASTNode ast_makeRoot() {
   ASTNode node = {};
   node.type = AST_NODE_ROOT;
@@ -128,6 +117,49 @@ ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right) {
   return node;
 };
 
+bool ast_writeBytecode(ASTNode* node, Hunk* hunk) {
+  switch (node->type) {
+    case AST_NODE_ROOT:
+      {
+        for (psize i = 0; i < array_count(node->root.children); i++) {
+          ASTNode* child = node->root.children[i];
+
+          ast_writeBytecode(child, hunk);
+        }
+      } break;
+    case AST_NODE_ASSIGNMENT_DECLARATION:
+      {
+        // write instructions to push right side onto stack
+        ASTNode* right = node->assignmentDeclaration.right;
+        assert(right->type == AST_NODE_NUMBER);
+
+        ast_writeBytecode(right, hunk);
+
+        // write instructions to set local variable of left-side-ident to top stack value
+        int local = hunk_addLocal(hunk, 0); // 0 is default value
+        hunk_write(hunk, OP_SET_LOCAL, 0);
+        hunk_write(hunk, local, 0);
+
+        hunk_write(hunk, OP_GET_LOCAL, 0);
+        hunk_write(hunk, local, 0);
+      } break;
+    case AST_NODE_NUMBER:
+      {
+        int constant = hunk_addConstant(hunk, node->number.number);
+        hunk_write(hunk, OP_CONSTANT, 0);
+        hunk_write(hunk, constant, 0);
+      } break;
+    default:
+      {
+        printf("ERROR: Don't know how to get bytecode from node type %d\n", node->type);
+
+        return false;
+      }
+  }
+
+  return true;
+}
+
 /*
        ROOT
         |
@@ -142,6 +174,17 @@ identifier constant
 assignment->right->push (instructions to push right side onto stack)
 assignment->left->retrieve (retrieve variable type (local vs global) and relevant get/set op codes, get variable identifier from opcodes and write those instructions to set a variable to the top value of the stack)
 */
+
+array_for(Token);
+
+struct Parser {
+  array(Token) tokens;
+  Token* head;
+
+  Hunk hunk;
+
+  ASTNode root;
+};
 
 void parser_init(Parser* p, array(Token) tokens) {
   p->tokens = tokens;
@@ -226,28 +269,34 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
   return false;
 }
 
-void parser_parse(Parser* p) {
+bool parser_parse(Parser* p) {
   p->root = ast_makeRoot();
 
   while (p->head->type != TOKEN_EOF) {
     printf("iterating on %.*s %d\n", p->head->len, p->head->start, p->head->type);
     if (parser_expect(p, TOKEN_IDENTIFIER)) {
-      if (!parser_parseStatement(p, &p->root)) {
-        printf("unknown statement\n");
-        break;
+      if (parser_parseStatement(p, &p->root)) {
+        continue;
       }
 
-      printf("parsed statement correctly\n");
-
       continue;
-    } else {
-      printf("ERROR: could not parse tokens\n");
-
-      break;
     }
 
-    p->head += 1;
+    printf("Syntax error: Unknown token %.*s (%d) on line %d\n", p->head->len, p->head->start, p->head->type, p->head->line);
+
+    return false;
   }
+
+  if (!ast_writeBytecode(&p->root, &p->hunk)) {
+    printf("Could not generate bytecode\n");
+
+    return false;
+  }
+
+  // Need to show some output
+  hunk_write(&p->hunk, OP_RETURN, 0);
+
+  return true;
 }
 
 int test_bytecode();
@@ -315,11 +364,27 @@ int main(int argc, char** argv) {
   Parser parser = {};
   parser_init(&parser, tokens);
 
-  parser_parse(&parser);
+  if (!parser_parse(&parser)) {
+    return -1;
+  }
 
-  return test_bytecode();
+  VM vm = {0};
+
+  vm_load(&vm, &parser.hunk);
+
+  ProgramResult res = vm_run(&vm);
+
+  if (res != PROGRAM_RESULT_OK) {
+    printf("Program failed executing...\n");
+    return 1;
+  }
+
+  printf("Program finished executing...\n");
+
+  return 0;
 }
 
+#if 0
 int test_bytecode() {
   Hunk hunk = {0};
 
@@ -419,3 +484,4 @@ int test_bytecode() {
 
   return 0;
 }
+#endif
