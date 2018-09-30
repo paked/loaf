@@ -110,6 +110,11 @@ enum ASTNodeType : uint32 {
   AST_NODE_ASSIGNMENT,
   AST_NODE_ASSIGNMENT_DECLARATION,
 
+  AST_NODE_ADD,
+  AST_NODE_SUBTRACT,
+  AST_NODE_MULTIPLY,
+  AST_NODE_DIVIDE,
+
   AST_NODE_IDENTIFIER,
   AST_NODE_NUMBER
 };
@@ -121,12 +126,7 @@ struct ASTNode_Root {
   array(ASTNode*) children;
 };
 
-struct ASTNode_AssignmentDeclaration {
-  ASTNode *left; // Must be an identifier
-  ASTNode *right; // Must be an expression (which returns a number)
-};
-
-struct ASTNode_Assignment {
+struct ASTNode_Binary {
   ASTNode *left; // Must be an identifier
   ASTNode *right; // Must be an expression (which returns a number)
 };
@@ -145,8 +145,13 @@ struct ASTNode {
   union {
     ASTNode_Root root;
 
-    ASTNode_AssignmentDeclaration assignmentDeclaration;
-    ASTNode_Assignment assignment;
+    ASTNode_Binary assignmentDeclaration;
+    ASTNode_Binary assignment;
+
+    ASTNode_Binary add;
+    ASTNode_Binary subtract;
+    ASTNode_Binary multiply;
+    ASTNode_Binary divide;
 
     ASTNode_Identifier identifier;
     ASTNode_Number number;
@@ -375,6 +380,72 @@ bool parser_expect(Parser* p, TokenType type, Token* tok = 0) {
 
 void parser_advance(Parser* p) {
   p->head += 1;
+}
+
+
+bool parser_parseBrackets(Parser* p, ASTNode* node);
+
+array_for(ASTNode);
+
+bool parser_parseExpression(Parser* p, ASTNode* node) {
+  int i = 0;
+  array(ASTNode) nodes = array_ASTNode_init();
+
+  while (true) {
+    ASTNode* n = &nodes[i];
+    Token t;
+
+    if (parser_expect(p, TOKEN_NUMBER, &t)) {
+      parser_advance(p);
+
+      // add numbers
+    } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
+      parser_advance(p);
+
+      // add identifier
+    } else if (parser_expect(p, TOKEN_ADD, &t)) {
+      parser_advance(p);
+    } else if (parser_expect(p, TOKEN_SUBTRACT, &t)) {
+      parser_advance(p);
+    } else if (parser_expect(p, TOKEN_MULTIPLY, &t)) {
+      parser_advance(p);
+    } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
+      parser_advance(p);
+    } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+      parser_parseBrackets(p, n);
+    } else {
+      printf("Failed to parse expression: unknown token\n");
+
+      return false;
+    }
+
+    i += 1;
+  }
+
+  // Perform algorithm:
+  // for: N * N + N * Bx + I
+  //  - group multiplication and division together until there are no operations of that sort in the top level
+  //    - becomes: B(N * N) + B(N * Bx) + I
+  //  - group addition and subtraction together
+  //    - becomes: B(B(B(N * N) + B(N * Bx)) + I)
+  // therefore everything has been reduced into a single binary expression
+
+  return true;
+}
+
+bool parser_parseBrackets(Parser* p, ASTNode* node) {
+  if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+    parser_advance(p);
+    if (parser_parseExpression(p, node)) {
+      if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+        parser_advance(p);
+
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 bool parser_parseStatement(Parser* p, ASTNode* node) {
