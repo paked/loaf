@@ -8,6 +8,7 @@ enum TokenType : uint32 {
 
   TOKEN_NUMBER,
 
+  TOKEN_ASSIGNMENT,
   TOKEN_ASSIGNMENT_DECLARATION,
 
   TOKEN_ADD,
@@ -158,6 +159,14 @@ Token scanner_getToken(Scanner* scn) {
     t = scanner_readIdentifier(scn);
   } else {
     switch (*scn->head) {
+      case '=':
+        {
+          t.type = TOKEN_ASSIGNMENT;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
       case ':':
         {
           if (scanner_peek(scn) == '=') {

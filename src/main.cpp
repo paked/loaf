@@ -1,6 +1,9 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
+#include <stdlib.h> // malloc, realloc
+#include <stdio.h> // printf
+#include <assert.h> // assert
+#include <string.h> // memcmp
+
+// TODO(harrison): rewrite some functions
 
 #include <us.hpp>
 
@@ -26,8 +29,86 @@
 
 //  eg. `exampleThing`, `exampleThing2`, `_thingThing`
 
+struct Variable {
+  // Info for name string
+  char* start;
+  int len;
+
+  int index;
+};
+
+array_for(Variable);
+
+// TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
+struct Scope {
+  array(Variable) variables;
+
+  Scope* parent;
+};
+
+void scope_init(Scope* s) {
+  s->variables = array_Variable_init();
+}
+
+bool scope_exists(Scope* s, char* name, int len) {
+  for (psize i = 0; i < array_count(s->variables); i++) {
+    Variable v = s->variables[i];
+
+    if (v.len != len) {
+      continue;
+    }
+
+    if (memcmp(name, v.start, len) == 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool scope_get(Scope* s, char* name, int len, Variable* var) {
+  for (psize i = 0; i < array_count(s->variables); i++) {
+    Variable v = s->variables[i];
+
+    if (v.len != len) {
+      continue;
+    }
+
+    if (memcmp(name, v.start, len) == 0) {
+      *var = v;
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void scope_set(Scope* s, Variable var) {
+  // If the variable exists, update it
+  for (psize i = 0; i < array_count(s->variables); i++) {
+    Variable v = s->variables[i];
+
+    if (v.len != var.len) {
+      continue;
+    }
+
+    if (memcmp(var.start, v.start, var.len) == 0) {
+      s->variables[i] = var;
+
+      return;
+    }
+  }
+
+  // If it doesn't, add a new one
+  array_Variable_add(&s->variables, var);
+}
+
+
 enum ASTNodeType : uint32 {
   AST_NODE_ROOT,
+
+  AST_NODE_ASSIGNMENT,
   AST_NODE_ASSIGNMENT_DECLARATION,
 
   AST_NODE_IDENTIFIER,
@@ -46,6 +127,11 @@ struct ASTNode_AssignmentDeclaration {
   ASTNode *right; // Must be an expression (which returns a number)
 };
 
+struct ASTNode_Assignment {
+  ASTNode *left; // Must be an identifier
+  ASTNode *right; // Must be an expression (which returns a number)
+};
+
 struct ASTNode_Identifier {
   Token token;
 };
@@ -59,7 +145,9 @@ struct ASTNode {
 
   union {
     ASTNode_Root root;
+
     ASTNode_AssignmentDeclaration assignmentDeclaration;
+    ASTNode_Assignment assignment;
 
     ASTNode_Identifier identifier;
     ASTNode_Number number;
@@ -117,37 +205,101 @@ ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right) {
   return node;
 };
 
-bool ast_writeBytecode(ASTNode* node, Hunk* hunk) {
+ASTNode ast_makeAssignment(ASTNode left, ASTNode right) {
+  ASTNode node = {};
+  node.type = AST_NODE_ASSIGNMENT;
+
+  // TODO(harrison): free!
+  ASTNode* l = (ASTNode*) malloc(sizeof(left));
+  ASTNode* r = (ASTNode*) malloc(sizeof(right));
+
+  *l = left;
+  *r = right;
+
+  node.assignment.left = l;
+  node.assignment.right = r;
+
+  return node;
+}
+
+// TODO(harrison): properly propogate errors
+bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
   switch (node->type) {
     case AST_NODE_ROOT:
       {
         for (psize i = 0; i < array_count(node->root.children); i++) {
           ASTNode* child = node->root.children[i];
 
-          ast_writeBytecode(child, hunk);
+          ast_writeBytecode(child, hunk, scope);
         }
       } break;
-    case AST_NODE_ASSIGNMENT_DECLARATION:
+    case AST_NODE_ASSIGNMENT:
       {
-        // write instructions to push right side onto stack
+        ASTNode* left = node->assignmentDeclaration.left;
+        assert(left->type == AST_NODE_IDENTIFIER);
+
         ASTNode* right = node->assignmentDeclaration.right;
         assert(right->type == AST_NODE_NUMBER);
 
-        ast_writeBytecode(right, hunk);
+        // write instructions to push right side onto stack
+        ast_writeBytecode(right, hunk, scope);
 
-        // write instructions to set local variable of left-side-ident to top stack value
-        int local = hunk_addLocal(hunk, 0); // 0 is default value
+        if (!scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
+          printf("ERROR: variable doesn't exist!\n");
+
+          return false;
+        }
+
+        Variable var = {};
+        var.start = left->identifier.token.start;
+        var.len = left->identifier.token.len;
+
+        var.index = hunk_addLocal(hunk, 0);
+
+        scope_set(scope, var);
+
         hunk_write(hunk, OP_SET_LOCAL, 0);
-        hunk_write(hunk, local, 0);
+        hunk_write(hunk, var.index, 0);
 
         hunk_write(hunk, OP_GET_LOCAL, 0);
-        hunk_write(hunk, local, 0);
+        hunk_write(hunk, var.index, 0);     
+      } break;
+    case AST_NODE_ASSIGNMENT_DECLARATION:
+      {
+        ASTNode* left = node->assignmentDeclaration.left;
+        assert(left->type == AST_NODE_IDENTIFIER);
+
+        ASTNode* right = node->assignmentDeclaration.right;
+        assert(right->type == AST_NODE_NUMBER);
+
+        // write instructions to push right side onto stack
+        ast_writeBytecode(right, hunk, scope);
+
+        if (scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
+          printf("ERROR: variable already exists!\n");
+
+          return false;
+        }
+
+        Variable var = {};
+        var.start = left->identifier.token.start;
+        var.len = left->identifier.token.len;
+
+        var.index = hunk_addLocal(hunk, 0);
+
+        scope_set(scope, var);
+
+        hunk_write(hunk, OP_SET_LOCAL, 0);
+        hunk_write(hunk, var.index, 0);
+
+        hunk_write(hunk, OP_GET_LOCAL, 0);
+        hunk_write(hunk, var.index, 0);
       } break;
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, node->number.number);
         hunk_write(hunk, OP_CONSTANT, 0);
-        hunk_write(hunk, constant, 0);
+        hunk_write(hunk, constant, 0);     
       } break;
     default:
       {
@@ -195,7 +347,7 @@ void parser_init(Parser* p, array(Token) tokens) {
 
 bool parser_expect(Parser* p, TokenType type, Token* tok = 0) {
   // TODO(harrison): skip comment tokens
-  
+
   if (p->head->type != type) {
     printf("did not match %.*s (head:%d vs want:%d)\n", p->head->len, p->head->start, p->head->type, type);
 
@@ -240,6 +392,19 @@ bool parser_parseStatement(Parser* p, ASTNode* parent) {
 
         printf("parsed assdecl\n");
         return true;
+      }
+    } else if (parser_expect(p, TOKEN_ASSIGNMENT)) {
+      parser_advance(p);
+
+      Token tVal;
+      if (parser_expect(p, TOKEN_NUMBER, &tVal)) {
+        parser_advance(p);
+
+        ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
+
+        ASTNode assignment = ast_makeAssignment(ident, val);
+
+        ast_root_add(parent, assignment);
       }
     } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
       parser_advance(p);
@@ -287,7 +452,10 @@ bool parser_parse(Parser* p) {
     return false;
   }
 
-  if (!ast_writeBytecode(&p->root, &p->hunk)) {
+  Scope scope = {};
+  scope_init(&scope);
+
+  if (!ast_writeBytecode(&p->root, &p->hunk, &scope)) {
     printf("Could not generate bytecode\n");
 
     return false;
