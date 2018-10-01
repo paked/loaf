@@ -54,6 +54,21 @@ void array_## name ## _add (Type** array, Type value) { \
 \
   (*array)[header->count] = value; \
   header->count += 1; \
+} \
+\
+void array_ ## name ## _zero(Type** array) { \
+  ArrayHeader* header = array_header(*array); \
+  header->count = 0; \
+\
+  memset(*array, 0, header->capacity * sizeof(Type)); \
+}\
+\
+void array_## name ##_copy(Type** from, Type** to, psize begin = 0) { \
+  array_ ## name ## _zero(to); \
+\
+  for (psize i = begin; i < array_count(*from); i++) { \
+    array_ ## name ## _add(to, (*from)[i]); \
+  } \
 }
 
 #define array_for(Type) array_for_name(Type, Type)

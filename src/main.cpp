@@ -103,6 +103,11 @@ void scope_set(Scope* s, Variable var) {
 }
 
 
+#define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= \
+    AST_NODE_DIVIDE)
+
+#define AST_NODE_IS_VALUE(type) ((type) == AST_NODE_NUMBER || AST_NODE_IS_ARITHMETIC((type)))
+
 enum ASTNodeType : uint32 {
   AST_NODE_INVALID,
   AST_NODE_ROOT,
@@ -158,6 +163,15 @@ struct ASTNode {
   };
 };
 
+void ast_root_add(ASTNode* parent, ASTNode child) {
+  assert(parent->type == AST_NODE_ROOT);
+
+  ASTNode* c = (ASTNode*) malloc(sizeof(child));
+  *c = child;
+
+  array_ASTNodep_add(&parent->root.children, c);
+}
+
 ASTNode ast_makeRoot() {
   ASTNode node = {};
   node.type = AST_NODE_ROOT;
@@ -175,14 +189,54 @@ ASTNode ast_makeIdentifier(Token t) {
   return node;
 };
 
-void ast_root_add(ASTNode* parent, ASTNode child) {
-  assert(parent->type == AST_NODE_ROOT);
+ASTNode ast_makeOperator(ASTNodeType op) {
+  ASTNode node = {};
 
-  ASTNode* c = (ASTNode*) malloc(sizeof(child));
-  *c = child;
+  switch (op) {
+    case AST_NODE_ADD:
+      {
+        node.type = AST_NODE_ADD;
+      } break;
+    case AST_NODE_SUBTRACT:
+      {
+      
+        node.type = AST_NODE_SUBTRACT;
+      } break;
+    case AST_NODE_MULTIPLY:
+      {
+      
+        node.type = AST_NODE_MULTIPLY;
+      } break;
+    case AST_NODE_DIVIDE:
+      {
+      
+        node.type = AST_NODE_DIVIDE;
+      } break;
+    default:
+      {
+        assert(!"ast_makeOperator must be one of AST_NODE_{ADD,SUBTRACT,MULTIPLY,DIVIDE}.");
+      } break;
+  }
 
-  array_ASTNodep_add(&parent->root.children, c);
+  return node;
 }
+
+ASTNode ast_makeOperatorWith(ASTNodeType op, ASTNode left, ASTNode right) {
+  ASTNode node = ast_makeOperator(op);
+
+  // TODO(harrison): free!
+  ASTNode* l = (ASTNode*) malloc(sizeof(left));
+  ASTNode* r = (ASTNode*) malloc(sizeof(right));
+
+  *l = left;
+  *r = right;
+
+  node.add.left = l;
+  node.add.right = r;
+
+  return node;
+}
+
 
 ASTNode ast_makeNumber(int n) {
   ASTNode node = {};
@@ -280,10 +334,8 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
         ASTNode* left = node->assignmentDeclaration.left;
-        assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        assert(right->type == AST_NODE_NUMBER);
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
@@ -309,6 +361,24 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_GET_LOCAL, 0);
         hunk_write(hunk, var.index, 0);
+      } break;
+    case AST_NODE_ADD:
+      {
+        ASTNode* left = node->add.left;
+
+        ASTNode* right = node->add.right;
+
+        // write instructions to push left side onto stack
+        if(!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if(!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_ADD, 0);
       } break;
     case AST_NODE_NUMBER:
       {
@@ -388,39 +458,135 @@ bool parser_parseBrackets(Parser* p, ASTNode* node);
 array_for(ASTNode);
 
 bool parser_parseExpression(Parser* p, ASTNode* node) {
-  int i = 0;
   array(ASTNode) nodes = array_ASTNode_init();
 
   while (true) {
-    ASTNode* n = &nodes[i];
+    ASTNode n = {};
     Token t;
 
     if (parser_expect(p, TOKEN_NUMBER, &t)) {
       parser_advance(p);
 
-      // add numbers
-    } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
-      parser_advance(p);
+      n = ast_makeNumber(us_parseInt(t.start, t.len));
 
-      // add identifier
+      printf("found numbers\n");
     } else if (parser_expect(p, TOKEN_ADD, &t)) {
       parser_advance(p);
-    } else if (parser_expect(p, TOKEN_SUBTRACT, &t)) {
-      parser_advance(p);
-    } else if (parser_expect(p, TOKEN_MULTIPLY, &t)) {
-      parser_advance(p);
-    } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
-      parser_advance(p);
+
+      n = ast_makeOperator(AST_NODE_ADD);
+
+      printf("found add\n");
     } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-      parser_parseBrackets(p, n);
+      if (!parser_parseBrackets(p, &n)) {
+        return false;
+      }
+    } else if (parser_expect(p, TOKEN_SEMICOLON) || parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+      break;
     } else {
       printf("Failed to parse expression: unknown token\n");
 
       return false;
     }
 
-    i += 1;
+    printf("got here\n");
+    array_ASTNode_add(&nodes, n);
   }
+
+  if (array_count(nodes) == 1) {
+    *node = nodes[0];
+
+    return true;
+  }
+
+  array(ASTNode) working = array_ASTNode_init();
+
+  bool same = false;
+
+  while (!same) {
+    psize i = 0;
+
+    same = true;
+    printf("nodes count: %zu\n", array_count(nodes));
+
+    if (array_count(nodes) == 1) {
+      break;
+    }
+
+    while (i < array_count(nodes)) {
+      ASTNode left = nodes[i];
+
+      if (!AST_NODE_IS_VALUE(left.type)) {
+        printf("invalid expression\n");
+
+        return false;
+      }
+
+      i += 1;
+
+      // ensure_next();
+      if (i >= array_count(nodes)) {
+        return false;
+      }
+
+      ASTNode op = nodes[i];
+
+      if (op.type != AST_NODE_ADD) {
+        printf("unsuported operator type: %d\n", op.type);
+
+        return false;
+      }
+
+      if (op.add.left != 0 && op.add.right != 0) {
+        array_ASTNode_add(&working, left);
+        array_ASTNode_add(&working, op);
+        // this node has already been merged
+        continue;
+      }
+
+      i += 1;
+
+      // ensure_next();
+      if (i >= array_count(nodes)) {
+        return false;
+      }
+
+      ASTNode right = nodes[i];
+
+      if (!AST_NODE_IS_VALUE(right.type)) {
+        printf("invalid expression\n");
+
+        return false;
+      }
+
+      ASTNode compressed = ast_makeOperatorWith(op.type, left, right);
+      array_ASTNode_add(&working, compressed);
+
+      same = false;
+
+      i += 1;
+
+      break;
+    }
+
+    while (i < array_count(nodes)) {
+      ASTNode n = nodes[i];
+      array_ASTNode_add(&working, n);
+
+      i += 1;
+    }
+
+    array_ASTNode_copy(&working, &nodes);
+
+    array_ASTNode_zero(&working);
+  }
+
+  if (array_count(nodes) != 1) {
+    printf("too many nodes\n");
+
+    return false;
+  }
+
+  *node = nodes[0];
 
   // Perform algorithm:
   // for: N * N + N * Bx + I
@@ -460,16 +626,14 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
     if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION)) {
       parser_advance(p);
 
-      // TODO(harrison): parse expression
-      Token tVal;
-      if (parser_expect(p, TOKEN_NUMBER, &tVal)) {
-        parser_advance(p);
+      ASTNode val = {};
 
-        ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
+      printf("getting expression\n");
+      if (parser_parseExpression(p, &val)) {
+        printf("doing the thing: %d\n", val.type);
+        printf("parsed assdecl\n");
 
         *node = ast_makeAssignmentDeclaration(ident, val);
-
-        printf("parsed assdecl\n");
         return true;
       }
     } else if (parser_expect(p, TOKEN_ASSIGNMENT)) {
@@ -531,7 +695,7 @@ bool parser_parse(Parser* p) {
 
     for (psize i = 0; i < parseFunctionsLen; i++) {
       if (parseFunctions[i](p, &node)) {
-        printf("Parsed a statement\n!");
+        printf("Parsed a statement!\n");
 
         break;
       }
