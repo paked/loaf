@@ -195,6 +195,14 @@ Token scanner_getToken(Scanner* scn) {
 
           scn->head += t.len;
         } break;
+      case '-':
+        {
+          t.type = TOKEN_SUBTRACT;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
       case '(':
         {
           t.type = TOKEN_BRACKET_OPEN;

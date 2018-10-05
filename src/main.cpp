@@ -102,9 +102,7 @@ void scope_set(Scope* s, Variable var) {
   array_Variable_add(&s->variables, var);
 }
 
-
-#define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= \
-    AST_NODE_DIVIDE)
+#define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
 
 #define AST_NODE_IS_VALUE(type) ((type) == AST_NODE_NUMBER || AST_NODE_IS_ARITHMETIC((type)))
 
@@ -199,17 +197,14 @@ ASTNode ast_makeOperator(ASTNodeType op) {
       } break;
     case AST_NODE_SUBTRACT:
       {
-      
         node.type = AST_NODE_SUBTRACT;
       } break;
     case AST_NODE_MULTIPLY:
       {
-      
         node.type = AST_NODE_MULTIPLY;
       } break;
     case AST_NODE_DIVIDE:
       {
-      
         node.type = AST_NODE_DIVIDE;
       } break;
     default:
@@ -380,6 +375,24 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_ADD, 0);
       } break;
+    case AST_NODE_SUBTRACT:
+      {
+        ASTNode* left = node->subtract.left;
+
+        ASTNode* right = node->subtract.right;
+
+        // write instructions to push left side onto stack
+        if(!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if(!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_SUBTRACT, 0);
+      } break;
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, node->number.number);
@@ -457,144 +470,138 @@ bool parser_parseBrackets(Parser* p, ASTNode* node);
 
 array_for(ASTNode);
 
-bool parser_parseExpression(Parser* p, ASTNode* node) {
-  array(ASTNode) nodes = array_ASTNode_init();
+#define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
+bool ast_nodeHasValue(ASTNode n) {
+  if (n.type != AST_NODE_NUMBER) {
+    if (AST_NODE_IS_ARITHMETIC(n.type)) {
+      if (!IS_USED(n)) {
+        assert(!"Operators can only be used as values when their n & right nodes are used");
+
+        return false;
+      }
+    } else {
+      assert(!"Expecting an addressable value!");
+
+      return false;
+    }
+  }
+
+  return true;
+}
+#undef IS_USED
+
+// Perform algorithm:
+// for: N * N + N * Bx + I
+//  - group multiplication and division together until there are no operations of that sort in the top level
+//    - becomes: B(N * N) + B(N * Bx) + I
+//  - group addition and subtraction together
+//    - becomes: B(B(B(N * N) + B(N * Bx)) + I)
+// therefore everything has been reduced into a single binary expression
+bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SEMICOLON) {
+  array(ASTNode) expression = array_ASTNode_init();
 
   while (true) {
     ASTNode n = {};
-    Token t;
+    Token t = {};
 
     if (parser_expect(p, TOKEN_NUMBER, &t)) {
       parser_advance(p);
 
       n = ast_makeNumber(us_parseInt(t.start, t.len));
-
-      printf("found numbers\n");
     } else if (parser_expect(p, TOKEN_ADD, &t)) {
       parser_advance(p);
 
       n = ast_makeOperator(AST_NODE_ADD);
+    } else if (parser_expect(p, TOKEN_SUBTRACT, &t)) {
+      parser_advance(p);
 
-      printf("found add\n");
+      n = ast_makeOperator(AST_NODE_SUBTRACT);
     } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
       if (!parser_parseBrackets(p, &n)) {
         return false;
-      }
-    } else if (parser_expect(p, TOKEN_SEMICOLON) || parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+      }   
+    } else if (parser_expect(p, endOn)) {
       break;
     } else {
-      printf("Failed to parse expression: unknown token\n");
-
-      return false;
+      assert(!"Unknown token type");
     }
 
-    printf("got here\n");
-    array_ASTNode_add(&nodes, n);
+    array_ASTNode_add(&expression, n);
   }
 
-  if (array_count(nodes) == 1) {
-    *node = nodes[0];
-
-    return true;
-  }
+#define LEFT() (expression[i])
+#define OP() (expression[i + 1])
+#define RIGHT() (expression[i + 2])
 
   array(ASTNode) working = array_ASTNode_init();
 
-  bool same = false;
+  ASTNodeType precedenceOrder[2] = { AST_NODE_ADD, AST_NODE_SUBTRACT };
 
-  while (!same) {
+  for (ASTNodeType currentOP : precedenceOrder) {
     psize i = 0;
 
-    same = true;
-    printf("nodes count: %zu\n", array_count(nodes));
+    while (i < array_count(expression) && array_count(expression) != 1) {
+      if (i + 2 >= array_count(expression)) {
+        printf("can't find anymore of current operation type, searching next\n");
+        break;
+      }
 
-    if (array_count(nodes) == 1) {
-      break;
-    }
+      ASTNode left = LEFT();
+      ASTNode op = OP();
+      ASTNode right = RIGHT();
 
-    while (i < array_count(nodes)) {
-      ASTNode left = nodes[i];
-
-      if (!AST_NODE_IS_VALUE(left.type)) {
-        printf("invalid expression\n");
+      if (!ast_nodeHasValue(left)) {
+        assert(!"Left node doesn't have value");
 
         return false;
       }
 
-      i += 1;
-
-      // ensure_next();
-      if (i >= array_count(nodes)) {
-        return false;
-      }
-
-      ASTNode op = nodes[i];
-
-      if (op.type != AST_NODE_ADD) {
-        printf("unsuported operator type: %d\n", op.type);
-
-        return false;
-      }
-
-      if (op.add.left != 0 && op.add.right != 0) {
+      if (op.type != currentOP) {
         array_ASTNode_add(&working, left);
         array_ASTNode_add(&working, op);
-        // this node has already been merged
+
+        i += 2;
+
+        printf("found wrong operation type, adding to working and moving on\n");
+
+        // TODO(harrison): skip other types instead of failing
+
         continue;
       }
 
-      i += 1;
-
-      // ensure_next();
-      if (i >= array_count(nodes)) {
-        return false;
-      }
-
-      ASTNode right = nodes[i];
-
-      if (!AST_NODE_IS_VALUE(right.type)) {
-        printf("invalid expression\n");
+      if (!ast_nodeHasValue(right)) {
+        assert(!"Right node doesn't have value");
 
         return false;
       }
 
+      printf("We have a valid binary operator\n");
       ASTNode compressed = ast_makeOperatorWith(op.type, left, right);
       array_ASTNode_add(&working, compressed);
 
-      same = false;
+      // Copy nodes after the right node;
+      psize j = i + 3;
+      while (j < array_count(expression)) {
+        ASTNode n = expression[j];
+        array_ASTNode_add(&working, n);
 
-      i += 1;
+        j += 1;
 
-      break;
+        printf("copying %zu\n", array_count(expression) - 3);
+      }
+
+      array_ASTNode_copy(&working, &expression);
+      array_ASTNode_zero(&working);
+
+      printf("done\n");
     }
-
-    while (i < array_count(nodes)) {
-      ASTNode n = nodes[i];
-      array_ASTNode_add(&working, n);
-
-      i += 1;
-    }
-
-    array_ASTNode_copy(&working, &nodes);
 
     array_ASTNode_zero(&working);
   }
 
-  if (array_count(nodes) != 1) {
-    printf("too many nodes\n");
+  assert(array_count(expression) == 1);
 
-    return false;
-  }
-
-  *node = nodes[0];
-
-  // Perform algorithm:
-  // for: N * N + N * Bx + I
-  //  - group multiplication and division together until there are no operations of that sort in the top level
-  //    - becomes: B(N * N) + B(N * Bx) + I
-  //  - group addition and subtraction together
-  //    - becomes: B(B(B(N * N) + B(N * Bx)) + I)
-  // therefore everything has been reduced into a single binary expression
+  *node = expression[0];
 
   return true;
 }
@@ -602,7 +609,7 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
 bool parser_parseBrackets(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
     parser_advance(p);
-    if (parser_parseExpression(p, node)) {
+    if (parser_parseExpression(p, node, TOKEN_BRACKET_CLOSE)) {
       if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
         parser_advance(p);
 

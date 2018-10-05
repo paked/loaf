@@ -63,10 +63,10 @@ void array_ ## name ## _zero(Type** array) { \
   memset(*array, 0, header->capacity * sizeof(Type)); \
 }\
 \
-void array_## name ##_copy(Type** from, Type** to, psize begin = 0) { \
+void array_## name ##_copy(Type** from, Type** to) { \
   array_ ## name ## _zero(to); \
 \
-  for (psize i = begin; i < array_count(*from); i++) { \
+  for (psize i = 0; i < array_count(*from); i++) { \
     array_ ## name ## _add(to, (*from)[i]); \
   } \
 }
