@@ -203,6 +203,15 @@ Token scanner_getToken(Scanner* scn) {
 
           scn->head += t.len;
         } break;
+      case '*':
+        {
+          t.type = TOKEN_MULTIPLY;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
+
       case '(':
         {
           t.type = TOKEN_BRACKET_OPEN;
@@ -223,6 +232,12 @@ Token scanner_getToken(Scanner* scn) {
         {
           if (scanner_peek(scn) == '*') {
             t = scanner_readComment(scn);
+          } else {
+            t.type = TOKEN_DIVIDE;
+            t.start = scn->head;
+            t.len = 1;
+
+            scn->head += t.len;
           }
         } break;
       default:

@@ -393,6 +393,42 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_SUBTRACT, 0);
       } break;
+    case AST_NODE_MULTIPLY:
+      {
+        ASTNode* left = node->multiply.left;
+
+        ASTNode* right = node->multiply.right;
+
+        // write instructions to push left side onto stack
+        if(!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if(!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_MULTIPLY, 0);
+      } break;
+    case AST_NODE_DIVIDE:
+      {
+        ASTNode* left = node->divide.left;
+
+        ASTNode* right = node->divide.right;
+
+        // write instructions to push left side onto stack
+        if(!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if(!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_DIVIDE, 0);
+      } break;
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, node->number.number);
@@ -516,10 +552,18 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
       parser_advance(p);
 
       n = ast_makeOperator(AST_NODE_SUBTRACT);
+    } else if (parser_expect(p, TOKEN_MULTIPLY, &t)) {
+      parser_advance(p);
+
+      n = ast_makeOperator(AST_NODE_MULTIPLY);
+    } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
+      parser_advance(p);
+
+      n = ast_makeOperator(AST_NODE_DIVIDE);
     } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
       if (!parser_parseBrackets(p, &n)) {
         return false;
-      }   
+      }
     } else if (parser_expect(p, endOn)) {
       break;
     } else {
@@ -535,7 +579,7 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
 
   array(ASTNode) working = array_ASTNode_init();
 
-  ASTNodeType precedenceOrder[2] = { AST_NODE_ADD, AST_NODE_SUBTRACT };
+  ASTNodeType precedenceOrder[] = { AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT };
 
   for (ASTNodeType currentOP : precedenceOrder) {
     psize i = 0;
