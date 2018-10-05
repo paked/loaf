@@ -29,9 +29,12 @@ void parser_init(Parser* p, array(Token) tokens) {
   p->hunk = {};
 }
 
-bool parser_expect(Parser* p, TokenType type, Token* tok = 0) {
+void parser_advance(Parser* p) {
   // TODO(harrison): skip comment tokens
+  p->head += 1;
+}
 
+bool parser_allow(Parser* p, TokenType type, Token* tok = 0) {
   if (p->head->type != type) {
     printf("did not match %.*s (head:%d vs want:%d)\n", p->head->len, p->head->start, p->head->type, type);
 
@@ -47,10 +50,15 @@ bool parser_expect(Parser* p, TokenType type, Token* tok = 0) {
   return true;
 }
 
-void parser_advance(Parser* p) {
-  p->head += 1;
-}
+bool parser_expect(Parser *p, TokenType type, Token* tok = 0) {
+  if (!parser_allow(p, type, tok)) {
+    return false;
+  }
 
+  parser_advance(p);
+
+  return true;
+}
 
 bool parser_parseBrackets(Parser* p, ASTNode* node);
 
@@ -71,30 +79,20 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
     Token t = {};
 
     if (parser_expect(p, TOKEN_NUMBER, &t)) {
-      parser_advance(p);
-
       n = ast_makeNumber(us_parseInt(t.start, t.len));
     } else if (parser_expect(p, TOKEN_ADD, &t)) {
-      parser_advance(p);
-
       n = ast_makeOperator(AST_NODE_ADD);
     } else if (parser_expect(p, TOKEN_SUBTRACT, &t)) {
-      parser_advance(p);
-
       n = ast_makeOperator(AST_NODE_SUBTRACT);
     } else if (parser_expect(p, TOKEN_MULTIPLY, &t)) {
-      parser_advance(p);
-
       n = ast_makeOperator(AST_NODE_MULTIPLY);
     } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
-      parser_advance(p);
-
       n = ast_makeOperator(AST_NODE_DIVIDE);
-    } else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+    } else if (parser_allow(p, TOKEN_BRACKET_OPEN)) {
       if (!parser_parseBrackets(p, &n)) {
         return false;
       }
-    } else if (parser_expect(p, endOn)) {
+    } else if (parser_allow(p, endOn)) {
       break;
     } else {
       assert(!"Unknown token type");
@@ -182,11 +180,8 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
 
 bool parser_parseBrackets(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-    parser_advance(p);
     if (parser_parseExpression(p, node, TOKEN_BRACKET_CLOSE)) {
       if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
-        parser_advance(p);
-
         return true;
       }
     }
@@ -200,13 +195,9 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
 
   Token tIdent;
   if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
-    parser_advance(p);
-
     ASTNode ident = ast_makeIdentifier(tIdent);
 
     if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION)) {
-      parser_advance(p);
-
       ASTNode val = {};
 
       printf("getting expression\n");
@@ -218,12 +209,8 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
         return true;
       }
     } else if (parser_expect(p, TOKEN_ASSIGNMENT)) {
-      parser_advance(p);
-
       Token tVal;
       if (parser_expect(p, TOKEN_NUMBER, &tVal)) {
-        parser_advance(p);
-
         ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
 
         *node = ast_makeAssignment(ident, val);
@@ -234,16 +221,11 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
       return true;
     }
     /* else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-      parser_advance(p);
-
       // TODO(harrison): parse expression
       Token tIdentVal;
 
       if (parser_expect(p, TOKEN_IDENTIFIER, &tIdentVal)) {
-        parser_advance(p);
         if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
-          parser_advance(p);
-
           printf("parsed function call\n");
           // TODO(harrison): add function call node to tree
 
@@ -287,8 +269,6 @@ bool parser_parse(Parser* p) {
 
       return false;
     }
-
-    parser_advance(p);
 
     ast_root_add(&p->root, node);
   }
