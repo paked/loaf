@@ -114,6 +114,8 @@ struct ASTNode_Number {
 struct ASTNode {
   ASTNodeType type;
 
+  int line;
+
   union {
     ASTNode_Root root;
 
@@ -150,14 +152,16 @@ ASTNode ast_makeRoot() {
 
 ASTNode ast_makeIdentifier(Token t) {
   ASTNode node = {};
+  node.line = t.line;
   node.type = AST_NODE_IDENTIFIER;
   node.identifier.token = t;
 
   return node;
 };
 
-ASTNode ast_makeOperator(ASTNodeType op) {
+ASTNode ast_makeOperator(ASTNodeType op, Token t) {
   ASTNode node = {};
+  node.line = t.line;
 
   switch (op) {
     case AST_NODE_ADD:
@@ -185,8 +189,8 @@ ASTNode ast_makeOperator(ASTNodeType op) {
   return node;
 }
 
-ASTNode ast_makeOperatorWith(ASTNodeType op, ASTNode left, ASTNode right) {
-  ASTNode node = ast_makeOperator(op);
+ASTNode ast_makeOperatorWith(ASTNodeType op, ASTNode left, ASTNode right, Token t) {
+  ASTNode node = ast_makeOperator(op, t);
 
   // TODO(harrison): free!
   ASTNode* l = (ASTNode*) malloc(sizeof(left));
@@ -202,16 +206,18 @@ ASTNode ast_makeOperatorWith(ASTNodeType op, ASTNode left, ASTNode right) {
 }
 
 
-ASTNode ast_makeNumber(int n) {
+ASTNode ast_makeNumber(int n, Token t) {
   ASTNode node = {};
+  node.line = t.line;
   node.type = AST_NODE_NUMBER;
   node.number.number = n;
 
   return node;
 }
 
-ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right) {
+ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right, Token t) {
   ASTNode node = {};
+  node.line = t.line;
   node.type = AST_NODE_ASSIGNMENT_DECLARATION;
 
   // TODO(harrison): free!
@@ -227,8 +233,9 @@ ASTNode ast_makeAssignmentDeclaration(ASTNode left, ASTNode right) {
   return node;
 };
 
-ASTNode ast_makeAssignment(ASTNode left, ASTNode right) {
+ASTNode ast_makeAssignment(ASTNode left, ASTNode right, Token t) {
   ASTNode node = {};
+  node.line = t.line;
   node.type = AST_NODE_ASSIGNMENT;
 
   // TODO(harrison): free!
@@ -243,6 +250,26 @@ ASTNode ast_makeAssignment(ASTNode left, ASTNode right) {
 
   return node;
 }
+
+#define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
+bool ast_nodeHasValue(ASTNode n) {
+  if (n.type != AST_NODE_NUMBER) {
+    if (AST_NODE_IS_ARITHMETIC(n.type)) {
+      if (!IS_USED(n)) {
+        assert(!"Operators can only be used as values when their n & right nodes are used");
+
+        return false;
+      }
+    } else {
+      assert(!"Expecting an addressable value!");
+
+      return false;
+    }
+  }
+
+  return true;
+}
+#undef IS_USED
 
 // TODO(harrison): properly propogate errors
 bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
@@ -268,7 +295,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        assert(right->type == AST_NODE_NUMBER);
+        assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
@@ -289,17 +316,19 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         scope_set(scope, var);
 
-        hunk_write(hunk, OP_SET_LOCAL, 0);
-        hunk_write(hunk, var.index, 0);
+        hunk_write(hunk, OP_SET_LOCAL, node->line);
+        hunk_write(hunk, var.index, node->line);
 
-        hunk_write(hunk, OP_GET_LOCAL, 0);
-        hunk_write(hunk, var.index, 0);     
+        hunk_write(hunk, OP_GET_LOCAL, node->line);
+        hunk_write(hunk, var.index, node->line);
       } break;
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
         ASTNode* left = node->assignmentDeclaration.left;
+        assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
+        assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
@@ -320,11 +349,11 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         scope_set(scope, var);
 
-        hunk_write(hunk, OP_SET_LOCAL, 0);
-        hunk_write(hunk, var.index, 0);
+        hunk_write(hunk, OP_SET_LOCAL, node->line);
+        hunk_write(hunk, var.index, node->line);
 
-        hunk_write(hunk, OP_GET_LOCAL, 0);
-        hunk_write(hunk, var.index, 0);
+        hunk_write(hunk, OP_GET_LOCAL, node->line);
+        hunk_write(hunk, var.index, node->line);
       } break;
     case AST_NODE_ADD:
       {
@@ -342,7 +371,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           return false;
         }
 
-        hunk_write(hunk, OP_ADD, 0);
+        hunk_write(hunk, OP_ADD, node->line);
       } break;
     case AST_NODE_SUBTRACT:
       {
@@ -360,7 +389,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           return false;
         }
 
-        hunk_write(hunk, OP_SUBTRACT, 0);
+        hunk_write(hunk, OP_SUBTRACT, node->line);
       } break;
     case AST_NODE_MULTIPLY:
       {
@@ -378,7 +407,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           return false;
         }
 
-        hunk_write(hunk, OP_MULTIPLY, 0);
+        hunk_write(hunk, OP_MULTIPLY, node->line);
       } break;
     case AST_NODE_DIVIDE:
       {
@@ -396,13 +425,13 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           return false;
         }
 
-        hunk_write(hunk, OP_DIVIDE, 0);
+        hunk_write(hunk, OP_DIVIDE, node->line);
       } break;
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, node->number.number);
-        hunk_write(hunk, OP_CONSTANT, 0);
-        hunk_write(hunk, constant, 0);     
+        hunk_write(hunk, OP_CONSTANT, node->line);
+        hunk_write(hunk, constant, node->line);
       } break;
     default:
       {
@@ -414,22 +443,3 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
   return true;
 }
-#define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
-bool ast_nodeHasValue(ASTNode n) {
-  if (n.type != AST_NODE_NUMBER) {
-    if (AST_NODE_IS_ARITHMETIC(n.type)) {
-      if (!IS_USED(n)) {
-        assert(!"Operators can only be used as values when their n & right nodes are used");
-
-        return false;
-      }
-    } else {
-      assert(!"Expecting an addressable value!");
-
-      return false;
-    }
-  }
-
-  return true;
-}
-#undef IS_USED

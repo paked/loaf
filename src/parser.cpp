@@ -79,15 +79,15 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
     Token t = {};
 
     if (parser_expect(p, TOKEN_NUMBER, &t)) {
-      n = ast_makeNumber(us_parseInt(t.start, t.len));
+      n = ast_makeNumber(us_parseInt(t.start, t.len), t);
     } else if (parser_expect(p, TOKEN_ADD, &t)) {
-      n = ast_makeOperator(AST_NODE_ADD);
+      n = ast_makeOperator(AST_NODE_ADD, t);
     } else if (parser_expect(p, TOKEN_SUBTRACT, &t)) {
-      n = ast_makeOperator(AST_NODE_SUBTRACT);
+      n = ast_makeOperator(AST_NODE_SUBTRACT, t);
     } else if (parser_expect(p, TOKEN_MULTIPLY, &t)) {
-      n = ast_makeOperator(AST_NODE_MULTIPLY);
+      n = ast_makeOperator(AST_NODE_MULTIPLY, t);
     } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
-      n = ast_makeOperator(AST_NODE_DIVIDE);
+      n = ast_makeOperator(AST_NODE_DIVIDE, t);
     } else if (parser_allow(p, TOKEN_BRACKET_OPEN)) {
       if (!parser_parseBrackets(p, &n)) {
         return false;
@@ -147,8 +147,11 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
         return false;
       }
 
+      Token t = {};
+      t.line = op.line;
+
       printf("We have a valid binary operator\n");
-      ASTNode compressed = ast_makeOperatorWith(op.type, left, right);
+      ASTNode compressed = ast_makeOperatorWith(op.type, left, right, t);
       array_ASTNode_add(&working, compressed);
 
       // Copy nodes after the right node;
@@ -197,7 +200,8 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
     ASTNode ident = ast_makeIdentifier(tIdent);
 
-    if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION)) {
+    Token tAss;
+    if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION, &tAss)) {
       ASTNode val = {};
 
       printf("getting expression\n");
@@ -205,18 +209,20 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
         printf("doing the thing: %d\n", val.type);
         printf("parsed assdecl\n");
 
-        *node = ast_makeAssignmentDeclaration(ident, val);
+        *node = ast_makeAssignmentDeclaration(ident, val, tAss);
         return true;
       }
-    } else if (parser_expect(p, TOKEN_ASSIGNMENT)) {
-      Token tVal;
-      if (parser_expect(p, TOKEN_NUMBER, &tVal)) {
-        ASTNode val = ast_makeNumber(us_parseInt(tVal.start, tVal.len));
+    } else if (parser_expect(p, TOKEN_ASSIGNMENT, &tAss)) {
+      ASTNode val = {};
+      printf("getting expression\n");
 
-        *node = ast_makeAssignment(ident, val);
+      if (parser_parseExpression(p, &val)) {
+        printf("doing the thing: %d\n", val.type);
+        printf("parsed ass\n");
+
+        *node = ast_makeAssignment(ident, val, tAss);
+        return true;
       }
-
-      printf("parsed ass\n");
 
       return true;
     }
