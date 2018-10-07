@@ -253,7 +253,7 @@ ASTNode ast_makeAssignment(ASTNode left, ASTNode right, Token t) {
 
 #define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
 bool ast_nodeHasValue(ASTNode n) {
-  if (n.type != AST_NODE_NUMBER) {
+  if (!(n.type == AST_NODE_NUMBER || n.type == AST_NODE_IDENTIFIER)) {
     if (AST_NODE_IS_ARITHMETIC(n.type)) {
       if (!IS_USED(n)) {
         assert(!"Operators can only be used as values when their n & right nodes are used");
@@ -318,9 +318,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
-
-        hunk_write(hunk, OP_GET_LOCAL, node->line);
-        hunk_write(hunk, var.index, node->line);
       } break;
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
@@ -350,9 +347,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         scope_set(scope, var);
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
-        hunk_write(hunk, var.index, node->line);
-
-        hunk_write(hunk, OP_GET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
       } break;
     case AST_NODE_ADD:
@@ -432,6 +426,19 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         int constant = hunk_addConstant(hunk, node->number.number);
         hunk_write(hunk, OP_CONSTANT, node->line);
         hunk_write(hunk, constant, node->line);
+      } break;
+    case AST_NODE_IDENTIFIER:
+      {
+        Variable var = {};
+
+        if (!scope_get(scope, node->identifier.token.start, node->identifier.token.len, &var)) {
+          printf("ERROR: variable doesn't exist!\n");
+
+          return false;
+        }
+
+        hunk_write(hunk, OP_GET_LOCAL, node->line);
+        hunk_write(hunk, var.index, node->line);
       } break;
     default:
       {

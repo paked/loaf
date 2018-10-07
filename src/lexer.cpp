@@ -40,6 +40,7 @@ struct Scanner {
 void scanner_load(Scanner* scn, char* buf) {
   scn->source = buf;
   scn->head = buf;
+  scn->line = 1;
 }
 
 void scanner_skipWhitespace(Scanner* scn) {
@@ -113,7 +114,7 @@ Token scanner_readIdentifier(Scanner* scn) {
   return t;
 }
 
-Token scanner_readComment(Scanner* scn) {
+Token scanner_readMultilineComment(Scanner* scn) {
   Token t = {};
   t.type = TOKEN_COMMENT;
   t.line = scn->line;
@@ -137,6 +138,29 @@ Token scanner_readComment(Scanner* scn) {
     if (depth <= 0) {
       break;
     }
+  }
+
+  return t;
+}
+
+Token scanner_readSinglelineComment(Scanner* scn) {
+  Token t = {};
+  t.type = TOKEN_COMMENT;
+  t.line = scn->line;
+  t.start = scn->head;
+
+  scn->head += 2;
+  t.len += 2;
+
+  while (*scn->head != '\0') {
+    char c = *scn->head;
+
+    if (us_isNewline(c)) {
+      break;
+    }
+
+    t.len += 1;
+    scn->head += 1;
   }
 
   return t;
@@ -231,7 +255,9 @@ Token scanner_getToken(Scanner* scn) {
       case '/':
         {
           if (scanner_peek(scn) == '*') {
-            t = scanner_readComment(scn);
+            t = scanner_readMultilineComment(scn);
+          } else if (scanner_peek(scn) == '/') {
+            t = scanner_readSinglelineComment(scn);
           } else {
             t.type = TOKEN_DIVIDE;
             t.start = scn->head;
@@ -245,7 +271,6 @@ Token scanner_getToken(Scanner* scn) {
           printf("Something is broken!\n");
         } break;
     }
-
   }
 
   return t;

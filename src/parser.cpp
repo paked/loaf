@@ -60,6 +60,26 @@ bool parser_expect(Parser *p, TokenType type, Token* tok = 0) {
   return true;
 }
 
+// int x = 10 + y;
+//              ^
+// func();
+//   ^
+// int x = 10 + func(y);
+//                ^  ^
+bool parser_parseIdentifier(Parser* p, ASTNode* node, Token tIdent) {
+  assert(tIdent.type == TOKEN_IDENTIFIER);
+
+  /*
+  if (parser_expect(TOKEN_BRACKET_OPEN)) {
+    *node = ast_makeFunctionCall(tIdent, parameters);
+    return true;
+  }*/
+
+  *node = ast_makeIdentifier(tIdent);
+
+  return true;
+}
+
 bool parser_parseBrackets(Parser* p, ASTNode* node);
 
 array_for(ASTNode);
@@ -88,6 +108,10 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
       n = ast_makeOperator(AST_NODE_MULTIPLY, t);
     } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
       n = ast_makeOperator(AST_NODE_DIVIDE, t);
+    } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
+      if (!parser_parseIdentifier(p, &n, t)) {
+        return false;
+      }
     } else if (parser_allow(p, TOKEN_BRACKET_OPEN)) {
       if (!parser_parseBrackets(p, &n)) {
         return false;
@@ -135,8 +159,6 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
         i += 2;
 
         printf("found wrong operation type, adding to working and moving on\n");
-
-        // TODO(harrison): skip other types instead of failing
 
         continue;
       }
@@ -223,9 +245,10 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
         *node = ast_makeAssignment(ident, val, tAss);
         return true;
       }
-
+    } else if (parser_parseIdentifier(p, node, tIdent)) {
       return true;
     }
+
     /* else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
       // TODO(harrison): parse expression
       Token tIdentVal;
