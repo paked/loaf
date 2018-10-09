@@ -312,7 +312,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        var.index = hunk_addLocal(hunk, 0);
+        var.index = hunk_addLocal(hunk, value_make(VALUE_NUMBER));
 
         scope_set(scope, var);
 
@@ -342,7 +342,8 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        var.index = hunk_addLocal(hunk, 0);
+        // TODO(harrison): replace local, don't just make a new one
+        var.index = hunk_addLocal(hunk, value_make(VALUE_NUMBER));
 
         scope_set(scope, var);
 
@@ -423,7 +424,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
       } break;
     case AST_NODE_NUMBER:
       {
-        int constant = hunk_addConstant(hunk, node->number.number);
+        int constant = hunk_addConstant(hunk, value_make((float) node->number.number));
         hunk_write(hunk, OP_CONSTANT, node->line);
         hunk_write(hunk, constant, node->line);
       } break;

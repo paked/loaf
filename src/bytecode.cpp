@@ -19,7 +19,77 @@ enum OPCode : Instruction {
   OP_DIVIDE
 };
 
-typedef int Value;
+enum ValueType {
+  VALUE_NUMBER,
+  VALUE_BOOL,
+
+  // VALUE_OBJ
+};
+
+
+#define VALUE_IS_NUMBER(v) ((v).type == VALUE_NUMBER)
+#define VALUE_IS_BOOL(v) ((v).type == VALUE_BOOL)
+
+struct Value {
+  ValueType type;
+
+  union {
+    float number;
+    bool boolean;
+
+    // Object* object;
+  } as;
+};
+
+Value value_make(ValueType type) {
+  Value v = {};
+  v.type = type;
+
+  switch (v.type) {
+    case VALUE_NUMBER:
+      { v.as.number = 0; } break;
+    case VALUE_BOOL:
+      { v.as.boolean = false; } break;
+    default:
+      {
+        assert(!"Unknown value type");
+      }
+  }
+
+  return v;
+}
+
+Value value_make(float t) {
+  Value v = {};
+  v.type = VALUE_NUMBER;
+
+  v.as.number = t;
+
+  return v;
+}
+
+void value_print(Value v) {
+  switch (v.type) {
+    case VALUE_NUMBER:
+      {
+        printf("%f", v.as.number);
+      } break;
+    case VALUE_BOOL:
+      {
+        printf(v.as.boolean ? "true" : "false");
+      }
+    default:
+      {
+        printf("unknown");
+      }
+  };
+}
+
+void value_println(Value v) {
+  value_print(v);
+
+  printf("\n");
+}
 
 // Constants keeps track of all the available constants in a program. Zero is initialisation.
 // TODO(harrison): force constants count to fit within the maximum addressable space by opcodes (256)
@@ -124,13 +194,19 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
     case OP_CONSTANT:
       {
-        printf("%s %d\n", "OP_CONSTANT", hunk->constants.values[hunk->code[offset + 1]]);
+        int idx = hunk->code[offset + 1];
+        printf("%s %d ", "OP_CONSTANT", idx);
+
+        value_println(hunk->constants.values[idx]);
 
         return offset + 2;
       } break;
     case OP_GET_LOCAL:
       {
-        printf("%s %d\n", "OP_GET_LOCAL", hunk->locals.values[hunk->code[offset + 1]]);
+        int idx = hunk->code[offset + 1];
+        printf("%s %d ", "OP_GET_LOCAL", idx);
+
+        value_println(hunk->locals.values[idx]);
 
         return offset + 2;
       } break;
@@ -210,7 +286,7 @@ ProgramResult vm_run(VM* vm) {
     switch (in) {
       case OP_RETURN:
         {
-          printf("%d\n", vm_stack_pop(vm));
+          value_println(vm_stack_pop(vm));
 
           return PROGRAM_RESULT_OK;
         } break;
@@ -237,13 +313,30 @@ ProgramResult vm_run(VM* vm) {
         } break;
       case OP_NEGATE:
         {
-          vm_stack_push(vm, -(vm_stack_pop(vm)));
+          Value v = vm_stack_pop(vm);
+
+          if (!VALUE_IS_NUMBER(v)) {
+            printf("RUNTIME ERROR: Value is not a number.");
+
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          v.as.number *= -1;
+
+          vm_stack_push(vm, v);
         } break;
 
 #define BINARY_OP(op) \
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
-  vm_stack_push(vm, a op b);
+  if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) { \
+    return PROGRAM_RESULT_RUNTIME_ERROR; \
+  } \
+  Value c = {}; \
+  c.type = VALUE_NUMBER; \
+  c.as.number = a.as.number op b.as.number; \
+  vm_stack_push(vm, c);
+
       case OP_ADD:
         {
           BINARY_OP(+);

@@ -10,6 +10,9 @@ enum TokenType : uint32 {
 
   TOKEN_NUMBER,
 
+  TOKEN_TRUE,
+  TOKEN_FALSE,
+
   TOKEN_ASSIGNMENT,
   TOKEN_ASSIGNMENT_DECLARATION,
 
@@ -104,11 +107,24 @@ Token scanner_readIdentifier(Scanner* scn) {
     }
 
     if (t.len == 0 && us_isDigit(*scn->head)) {
-        break;
+      t.type = TOKEN_ILLEGAL;
+      break;
     }
 
     t.len += 1;
     scn->head += 1;
+  }
+
+  // true
+  // false
+  if (t.len == 4) {
+    if (strncmp(t.start, "true", 4) == 0) {
+      t.type = TOKEN_TRUE;
+    }
+  } else if (t.len == 5) {
+    if (strncmp(t.start, "false", 5) == 0) {
+      t.type = TOKEN_FALSE;
+    }
   }
 
   return t;
@@ -177,11 +193,8 @@ Token scanner_getToken(Scanner* scn) {
     t.type = TOKEN_EOF;
   } else if (us_isDigit(*scn->head)) {
     t = scanner_readNumber(scn);
-/*  
-    } else if (scanner_isKeyword(scn)) {
-    t = scanner_readKeyword();
-*/
   } else if (scanner_isLetter(scn)) {
+    // NOTE(harrison): this will also map identifiers
     t = scanner_readIdentifier(scn);
   } else {
     switch (*scn->head) {
