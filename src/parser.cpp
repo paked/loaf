@@ -91,7 +91,7 @@ array_for(ASTNode);
 //  - group addition and subtraction together
 //    - becomes: B(B(B(N * N) + B(N * Bx)) + I)
 // therefore everything has been reduced into a single binary expression
-bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SEMICOLON) {
+bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SEMICOLON) {
   array(ASTNode) expression = array_ASTNode_init();
 
   while (true) {
@@ -108,6 +108,8 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
       n = ast_makeOperator(AST_NODE_MULTIPLY, t);
     } else if (parser_expect(p, TOKEN_DIVIDE, &t)) {
       n = ast_makeOperator(AST_NODE_DIVIDE, t);
+    } else if (parser_expect(p, TOKEN_EQUALS, &t)) {
+      n = ast_makeOperator(AST_NODE_TEST_EQUAL, t);
     } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
       if (!parser_parseIdentifier(p, &n, t)) {
         return false;
@@ -131,7 +133,7 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
 
   array(ASTNode) working = array_ASTNode_init();
 
-  ASTNodeType precedenceOrder[] = {AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT };
+  ASTNodeType precedenceOrder[] = { AST_NODE_TEST_EQUAL, AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT };
 
   for (ASTNodeType currentOP : precedenceOrder) {
     psize i = 0;
@@ -203,14 +205,43 @@ bool parser_parseExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SE
   return true;
 }
 
+bool parser_parseBooleanExpression(Parser* p, ASTNode* node) {
+  return false;
+}
+
 bool parser_parseBrackets(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-    if (parser_parseExpression(p, node, TOKEN_BRACKET_CLOSE)) {
+    if (parser_parseNumericalExpression(p, node, TOKEN_BRACKET_CLOSE)) {
       if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
         return true;
       }
     }
   }
+
+  return false;
+}
+
+bool parser_parseExpression(Parser* p, ASTNode* node) {
+  printf("parsing expression\n");
+
+  Token t;
+
+  if (parser_expect(p, TOKEN_TRUE, &t)) {
+    *node = ast_makeValue(value_make(true), t);
+
+    return true;
+  } else if (parser_expect(p, TOKEN_FALSE, &t)) {
+    *node = ast_makeValue(value_make(false), t);
+
+    return true;
+  } else if (parser_parseNumericalExpression(p, node)) {
+    return true;
+  } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
+    if (parser_parseIdentifier(p, node, t)) {
+      return true;
+    }
+  }
+
 
   return false;
 }
@@ -266,6 +297,11 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
     Token t = *p->head;
 
     printf("%.*s %d\n", t.len, t.start, t.type);
+  } else if (parser_expect(p, TOKEN_IF, &tIdent)) {
+      ASTNode condition = {};
+      if (parser_parseExpression(p, &condition)) {
+        *node = condition;
+      }
   }
 
   printf("failed parse statemetn\n");

@@ -87,7 +87,10 @@ enum ASTNodeType : uint32 {
   AST_NODE_MULTIPLY,
   AST_NODE_DIVIDE,
 
+  AST_NODE_TEST_EQUAL,
+
   AST_NODE_IDENTIFIER,
+  AST_NODE_VALUE,
   AST_NODE_NUMBER
 };
 
@@ -107,6 +110,10 @@ struct ASTNode_Identifier {
   Token token;
 };
 
+struct ASTNode_Value {
+  Value val;
+};
+
 struct ASTNode_Number {
   int number;
 };
@@ -122,10 +129,16 @@ struct ASTNode {
     ASTNode_Binary assignmentDeclaration;
     ASTNode_Binary assignment;
 
+    ASTNode_Binary binary;
+
     ASTNode_Binary add;
     ASTNode_Binary subtract;
     ASTNode_Binary multiply;
     ASTNode_Binary divide;
+
+    ASTNode_Binary equality;
+
+    ASTNode_Value value;
 
     ASTNode_Identifier identifier;
     ASTNode_Number number;
@@ -157,7 +170,18 @@ ASTNode ast_makeIdentifier(Token t) {
   node.identifier.token = t;
 
   return node;
-};
+}
+
+ASTNode ast_makeValue(Value v, Token t) {
+  ASTNode node = {};
+  node.type = AST_NODE_VALUE;
+
+  node.line = t.line;
+
+  node.value.val = v;
+
+  return node;
+}
 
 ASTNode ast_makeOperator(ASTNodeType op, Token t) {
   ASTNode node = {};
@@ -165,20 +189,12 @@ ASTNode ast_makeOperator(ASTNodeType op, Token t) {
 
   switch (op) {
     case AST_NODE_ADD:
-      {
-        node.type = AST_NODE_ADD;
-      } break;
     case AST_NODE_SUBTRACT:
-      {
-        node.type = AST_NODE_SUBTRACT;
-      } break;
     case AST_NODE_MULTIPLY:
-      {
-        node.type = AST_NODE_MULTIPLY;
-      } break;
     case AST_NODE_DIVIDE:
+    case AST_NODE_TEST_EQUAL:
       {
-        node.type = AST_NODE_DIVIDE;
+        node.type = op;
       } break;
     default:
       {
@@ -251,6 +267,29 @@ ASTNode ast_makeAssignment(ASTNode left, ASTNode right, Token t) {
   return node;
 }
 
+bool ast_checkType(ASTNode n, ValueType vt) {
+  switch (n.type) {
+    case AST_NODE_ADD:
+    case AST_NODE_SUBTRACT:
+    case AST_NODE_MULTIPLY:
+    case AST_NODE_DIVIDE:
+      {
+        return ast_checkType(*n.binary.left, vt) && ast_checkType(*n.binary.right, vt);
+      } break;
+    case AST_NODE_NUMBER:
+      {
+        return (vt == VALUE_NUMBER) ? true : false;
+      } break;
+
+    case AST_NODE_VALUE:
+      {
+        return (vt == n.value.val.type);
+      } break;
+    default:
+      return false;
+  }
+}
+
 #define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
 bool ast_nodeHasValue(ASTNode n) {
   if (!(n.type == AST_NODE_NUMBER || n.type == AST_NODE_IDENTIFIER)) {
@@ -295,26 +334,19 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        assert(ast_nodeHasValue(*right));
+        // assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
-        if (!scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
+        Variable var = {};
+        if (!scope_get(scope, left->identifier.token.start, left->identifier.token.len, &var)) {
           printf("ERROR: variable doesn't exist!\n");
 
           return false;
         }
-
-        Variable var = {};
-        var.start = left->identifier.token.start;
-        var.len = left->identifier.token.len;
-
-        var.index = hunk_addLocal(hunk, value_make(VALUE_NUMBER));
-
-        scope_set(scope, var);
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
@@ -325,7 +357,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        assert(ast_nodeHasValue(*right));
+        // assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
@@ -342,7 +374,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        // TODO(harrison): replace local, don't just make a new one
         var.index = hunk_addLocal(hunk, value_make(VALUE_NUMBER));
 
         scope_set(scope, var);
@@ -350,10 +381,26 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
       } break;
+    case AST_NODE_TEST_EQUAL:
+      {
+        ASTNode* left = node->equality.left;
+        ASTNode* right = node->equality.right;
+
+        // write instructions to push left side onto stack
+        if(!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if(!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_TEST_EQ, node->line);
+      } break;
     case AST_NODE_ADD:
       {
         ASTNode* left = node->add.left;
-
         ASTNode* right = node->add.right;
 
         // write instructions to push left side onto stack
@@ -425,6 +472,12 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, value_make((float) node->number.number));
+        hunk_write(hunk, OP_CONSTANT, node->line);
+        hunk_write(hunk, constant, node->line);
+      } break;
+    case AST_NODE_VALUE:
+      {
+        int constant = hunk_addConstant(hunk, node->value.val);
         hunk_write(hunk, OP_CONSTANT, node->line);
         hunk_write(hunk, constant, node->line);
       } break;

@@ -12,6 +12,7 @@ enum TokenType : uint32 {
 
   TOKEN_TRUE,
   TOKEN_FALSE,
+  TOKEN_IF,
 
   TOKEN_ASSIGNMENT,
   TOKEN_ASSIGNMENT_DECLARATION,
@@ -20,6 +21,8 @@ enum TokenType : uint32 {
   TOKEN_SUBTRACT,
   TOKEN_MULTIPLY,
   TOKEN_DIVIDE,
+
+  TOKEN_EQUALS,
 
   TOKEN_BRACKET_OPEN,
   TOKEN_BRACKET_CLOSE,
@@ -117,6 +120,7 @@ Token scanner_readIdentifier(Scanner* scn) {
 
   // true
   // false
+  // if
   if (t.len == 4) {
     if (strncmp(t.start, "true", 4) == 0) {
       t.type = TOKEN_TRUE;
@@ -124,6 +128,10 @@ Token scanner_readIdentifier(Scanner* scn) {
   } else if (t.len == 5) {
     if (strncmp(t.start, "false", 5) == 0) {
       t.type = TOKEN_FALSE;
+    }
+  } else if (t.len == 2) {
+    if (strncmp(t.start, "if", 2) == 0) {
+      t.type = TOKEN_IF;
     }
   }
 
@@ -200,11 +208,19 @@ Token scanner_getToken(Scanner* scn) {
     switch (*scn->head) {
       case '=':
         {
-          t.type = TOKEN_ASSIGNMENT;
-          t.start = scn->head;
-          t.len = 1;
+          if (scanner_peek(scn) == '=') {
+            t.type = TOKEN_EQUALS;
+            t.start = scn->head;
+            t.len = 2;
 
-          scn->head += t.len;
+            scn->head += t.len;
+          } else {
+            t.type = TOKEN_ASSIGNMENT;
+            t.start = scn->head;
+            t.len = 1;
+
+            scn->head += t.len;
+          }
         } break;
       case ':':
         {

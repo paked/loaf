@@ -16,7 +16,14 @@ enum OPCode : Instruction {
   OP_ADD,
   OP_SUBTRACT,
   OP_MULTIPLY,
-  OP_DIVIDE
+  OP_DIVIDE,
+
+  // OP tgt, tlt, teq
+  OP_TEST_EQ, // ==
+  OP_TEST_GT, // >
+  OP_TEST_LT, // <
+  OP_TEST_OR, // ||
+  OP_TEST_AND // &&
 };
 
 enum ValueType {
@@ -25,7 +32,6 @@ enum ValueType {
 
   // VALUE_OBJ
 };
-
 
 #define VALUE_IS_NUMBER(v) ((v).type == VALUE_NUMBER)
 #define VALUE_IS_BOOL(v) ((v).type == VALUE_BOOL)
@@ -68,6 +74,15 @@ Value value_make(float t) {
   return v;
 }
 
+Value value_make(bool t) {
+  Value v = {};
+  v.type = VALUE_BOOL;
+
+  v.as.boolean = t;
+
+  return v;
+}
+
 void value_print(Value v) {
   switch (v.type) {
     case VALUE_NUMBER:
@@ -77,10 +92,12 @@ void value_print(Value v) {
     case VALUE_BOOL:
       {
         printf(v.as.boolean ? "true" : "false");
+
+        break;
       }
     default:
       {
-        printf("unknown");
+        printf("unknown: %d", v.type);
       }
   };
 }
@@ -89,6 +106,31 @@ void value_println(Value v) {
   value_print(v);
 
   printf("\n");
+}
+
+bool value_equals(Value left, Value right) {
+  if (left.type != right.type) {
+    // TODO(harrison): this should not be possible. We need a type system.
+
+    assert(!"Can't compare variables of different types");
+  }
+
+  switch (left.type) {
+    case VALUE_BOOL:
+      {
+        return left.as.boolean == right.as.boolean;
+      } break;
+    case VALUE_NUMBER:
+      {
+        return us_equals(left.as.number, right.as.number);
+      } break;
+    default:
+      {
+        assert(!"Unknown type");
+      }
+  }
+
+  return false;
 }
 
 // Constants keeps track of all the available constants in a program. Zero is initialisation.
@@ -192,6 +234,8 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_MULTIPLY);
     SIMPLE_INSTRUCTION(OP_DIVIDE);
 
+    SIMPLE_INSTRUCTION(OP_TEST_EQ);
+
     case OP_CONSTANT:
       {
         int idx = hunk->code[offset + 1];
@@ -216,7 +260,6 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
         return offset + 2;
       } break;
-
     default:
       {
         printf("Unknown opcode: %d\n", in);
@@ -325,7 +368,18 @@ ProgramResult vm_run(VM* vm) {
 
           vm_stack_push(vm, v);
         } break;
+      case OP_TEST_EQ:
+        {
+          Value b = vm_stack_pop(vm);
+          Value a = vm_stack_pop(vm);
 
+          Value c = {};
+          c.type = VALUE_BOOL;
+
+          c.as.boolean = value_equals(a, b);
+
+          vm_stack_push(vm, c);
+        } break;
 #define BINARY_OP(op) \
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
