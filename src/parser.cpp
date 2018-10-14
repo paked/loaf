@@ -135,7 +135,7 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
 
   array(ASTNode) working = array_ASTNode_init();
 
-  ASTNodeType precedenceOrder[] = { AST_NODE_TEST_EQUAL, AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT };
+  ASTNodeType precedenceOrder[] = { AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT, AST_NODE_TEST_EQUAL };
 
   for (ASTNodeType currentOP : precedenceOrder) {
     psize i = 0;

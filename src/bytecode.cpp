@@ -218,13 +218,19 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
   printf("%04d | %04d | ", hunk->lines[offset], offset);
 
   Instruction in = hunk->code[offset];
-#define SIMPLE_INSTRUCTION(code) \
-  case code: \
+#define SIMPLE_INSTRUCTION(Code) \
+  case Code: \
     { \
-      printf("%s\n", #code ); \
-\
+      printf("## Code ##\n"); \
       return offset + 1; \
     } break;
+
+#define SIMPLE_INSTRUCTION2(Code) \
+  case Code: \
+      { \
+        printf("## Code ## %d\n", hunk->code[offset + 1]); \
+        return offset + 2; \
+      } break;
 
   switch (in) {
     SIMPLE_INSTRUCTION(OP_RETURN);
@@ -236,6 +242,9 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_DIVIDE);
 
     SIMPLE_INSTRUCTION(OP_TEST_EQ);
+
+    SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
+    SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
 
     case OP_CONSTANT:
       {
@@ -255,18 +264,6 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
         return offset + 2;
       } break;
-    case OP_SET_LOCAL:
-      {
-        printf("%s %d\n", "OP_SET_LOCAL", hunk->code[offset + 1]);
-
-        return offset + 2;
-      } break;
-    case OP_JUMP_IF_FALSE:
-      {
-        printf("%s %d\n", "OP_JUMP_IF_FALSE", hunk->code[offset + 1]);
-
-        return offset + 2;
-      } break;
     default:
       {
         printf("Unknown opcode: %d\n", in);
@@ -276,6 +273,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
   return offset + 1;
 
 #undef SIMPLE_INSTRUCTION
+#undef SIMPLE_INSTRUCTION2
 }
 
 void hunk_disassemble(Hunk* hunk, const char* name) {
@@ -361,6 +359,15 @@ ProgramResult vm_run(VM* vm) {
 
           vm_stack_push(vm, val);
         } break;
+      case OP_JUMP_IF_FALSE:
+        {
+          Value v = vm_stack_pop(vm);
+          Instruction jumpOffset = READ();
+
+          if (v.type == VALUE_BOOL && v.as.boolean == false) {
+            vm->ip += jumpOffset;
+          }
+        } break;
       case OP_NEGATE:
         {
           Value v = vm_stack_pop(vm);
@@ -386,15 +393,6 @@ ProgramResult vm_run(VM* vm) {
           c.as.boolean = value_equals(a, b);
 
           vm_stack_push(vm, c);
-        } break;
-      case OP_JUMP_IF_FALSE:
-        {
-          Value v = vm_stack_pop(vm);
-          Instruction jumpOffset = READ();
-
-          if (v.type == VALUE_BOOL && v.as.boolean == false) {
-            vm->ip += jumpOffset;
-          }
         } break;
 #define BINARY_OP(op) \
   Value b = vm_stack_pop(vm); \
