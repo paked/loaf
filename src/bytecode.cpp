@@ -1,4 +1,4 @@
-typedef uint8 Instruction;
+typedef uint16 Instruction;
 
 enum OPCode : Instruction {
   OP_RETURN,
@@ -18,12 +18,13 @@ enum OPCode : Instruction {
   OP_MULTIPLY,
   OP_DIVIDE,
 
-  // OP tgt, tlt, teq
-  OP_TEST_EQ, // ==
-  OP_TEST_GT, // >
-  OP_TEST_LT, // <
-  OP_TEST_OR, // ||
-  OP_TEST_AND // &&
+  OP_TEST_EQ,   // ==
+  OP_TEST_GT,   // >
+  OP_TEST_LT,   // <
+  OP_TEST_OR,   // ||
+  OP_TEST_AND,  // &&
+
+  OP_JUMP_IF_FALSE,
 };
 
 enum ValueType {
@@ -260,6 +261,12 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
         return offset + 2;
       } break;
+    case OP_JUMP_IF_FALSE:
+      {
+        printf("%s %d\n", "OP_JUMP_IF_FALSE", hunk->code[offset + 1]);
+
+        return offset + 2;
+      } break;
     default:
       {
         printf("Unknown opcode: %d\n", in);
@@ -380,6 +387,15 @@ ProgramResult vm_run(VM* vm) {
 
           vm_stack_push(vm, c);
         } break;
+      case OP_JUMP_IF_FALSE:
+        {
+          Value v = vm_stack_pop(vm);
+          Instruction jumpOffset = READ();
+
+          if (v.type == VALUE_BOOL && v.as.boolean == false) {
+            vm->ip += jumpOffset;
+          }
+        } break;
 #define BINARY_OP(op) \
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
@@ -390,7 +406,6 @@ ProgramResult vm_run(VM* vm) {
   c.type = VALUE_NUMBER; \
   c.as.number = a.as.number op b.as.number; \
   vm_stack_push(vm, c);
-
       case OP_ADD:
         {
           BINARY_OP(+);

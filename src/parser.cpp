@@ -118,9 +118,11 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
       if (!parser_parseBrackets(p, &n)) {
         return false;
       }
-    } else if (parser_allow(p, endOn)) {
+    } else if (parser_allow(p, endOn) || parser_allow(p, TOKEN_CURLY_OPEN)) {
       break;
     } else {
+      printf("token: %.*s. %d\n", t.len, t.start, t.type);
+
       assert(!"Unknown token type");
     }
 
@@ -246,6 +248,8 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
   return false;
 }
 
+bool parser_parseBlock(Parser* p, ASTNode* node);
+
 bool parser_parseStatement(Parser* p, ASTNode* node) {
   printf("beginning parse statemetn\n");
 
@@ -297,14 +301,66 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
     Token t = *p->head;
 
     printf("%.*s %d\n", t.len, t.start, t.type);
-  } else if (parser_expect(p, TOKEN_IF, &tIdent)) {
-      ASTNode condition = {};
-      if (parser_parseExpression(p, &condition)) {
-        *node = condition;
-      }
   }
 
   printf("failed parse statemetn\n");
+  return false;
+}
+
+bool parser_parseIf(Parser* p, ASTNode* node) {
+  if (parser_expect(p, TOKEN_IF)) {
+      ASTNode condition = {};
+      if (parser_parseExpression(p, &condition)) {
+        ASTNode block = {};
+
+        if (parser_parseBlock(p, &block)) {
+          *node = ast_makeIf(condition, block);
+
+          printf("%%%%%%%%%%%%%%%%%%%%%%MADE IF\n");
+
+          return true;
+        }
+      }
+  }
+
+  return false;
+}
+
+bool parser_parseBlock(Parser* p, ASTNode* node) {
+  printf("parsing block\n");
+  if (parser_expect(p, TOKEN_CURLY_OPEN)) {
+    printf("found curly open\n");
+    ASTNode block = ast_makeRoot();
+
+    while (p->head->type != TOKEN_EOF && p->head->type != TOKEN_CURLY_CLOSE) {
+      ASTNode next = {};
+
+      if (parser_parseIf(p, &next)) {
+        // do nothing
+      } else if (parser_parseStatement(p, &next)) {
+        if (!parser_expect(p, TOKEN_SEMICOLON)) {
+          assert(!"Syntax error: Expected semicolon but did not find one\n");
+
+          return false;
+        }
+      }
+
+      ast_root_add(&block, next);
+
+      if (parser_allow(p, TOKEN_CURLY_CLOSE)) {
+        break;
+      }
+    }
+
+    if (parser_expect(p, TOKEN_CURLY_CLOSE)) {
+      *node = block;
+
+      return true;
+    }
+  }
+
+  printf("failed parsing block %d\n", p->head->type);
+
   return false;
 }
 
@@ -314,29 +370,7 @@ ParseFunction parseFunctions[] = {parser_parseStatement};
 psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
 
 bool parser_parse(Parser* p) {
-  p->root = ast_makeRoot();
-
-  while (p->head->type != TOKEN_EOF) {
-    printf("iterating on %.*s %d\n", p->head->len, p->head->start, p->head->type);
-
-    ASTNode node = {};
-
-    for (psize i = 0; i < parseFunctionsLen; i++) {
-      if (parseFunctions[i](p, &node)) {
-        printf("Parsed a statement!\n");
-
-        break;
-      }
-    }
-
-    if (!parser_expect(p, TOKEN_SEMICOLON)) {
-      printf("Syntax error: Expected semicolon but did not find one\n");
-
-      return false;
-    }
-
-    ast_root_add(&p->root, node);
-  }
+  parser_parseBlock(p, &p->root);
 
   printf("finished building AST\n");
 

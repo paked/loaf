@@ -24,8 +24,11 @@ enum TokenType : uint32 {
 
   TOKEN_EQUALS,
 
-  TOKEN_BRACKET_OPEN,
-  TOKEN_BRACKET_CLOSE,
+  TOKEN_BRACKET_OPEN,  // (
+  TOKEN_BRACKET_CLOSE, // (
+
+  TOKEN_CURLY_OPEN, // {
+  TOKEN_CURLY_CLOSE // }
 };
 
 struct Token {
@@ -264,7 +267,6 @@ Token scanner_getToken(Scanner* scn) {
 
           scn->head += t.len;
         } break;
-
       case '(':
         {
           t.type = TOKEN_BRACKET_OPEN;
@@ -276,6 +278,22 @@ Token scanner_getToken(Scanner* scn) {
       case ')':
         {
           t.type = TOKEN_BRACKET_CLOSE;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
+      case '{':
+        {
+          t.type = TOKEN_CURLY_OPEN;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
+      case '}':
+        {
+          t.type = TOKEN_CURLY_CLOSE;
           t.start = scn->head;
           t.len = 1;
 

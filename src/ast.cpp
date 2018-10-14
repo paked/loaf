@@ -87,6 +87,8 @@ enum ASTNodeType : uint32 {
   AST_NODE_MULTIPLY,
   AST_NODE_DIVIDE,
 
+  AST_NODE_IF,
+
   AST_NODE_TEST_EQUAL,
 
   AST_NODE_IDENTIFIER,
@@ -118,6 +120,12 @@ struct ASTNode_Number {
   int number;
 };
 
+struct ASTNode_If {
+  ASTNode* condition;
+
+  ASTNode* block;
+};
+
 struct ASTNode {
   ASTNodeType type;
 
@@ -142,6 +150,8 @@ struct ASTNode {
 
     ASTNode_Identifier identifier;
     ASTNode_Number number;
+
+    ASTNode_If cIf;
   };
 };
 
@@ -267,6 +277,21 @@ ASTNode ast_makeAssignment(ASTNode left, ASTNode right, Token t) {
   return node;
 }
 
+ASTNode ast_makeIf(ASTNode condition, ASTNode block) {
+  assert(block.type == AST_NODE_ROOT);
+
+  ASTNode node = {};
+  node.type = AST_NODE_IF;
+
+  node.cIf.condition = (ASTNode*) malloc(sizeof(condition));
+  *node.cIf.condition = condition;
+
+  node.cIf.block = (ASTNode*) malloc(sizeof(block));
+  *node.cIf.block = block;
+
+  return node;
+}
+
 bool ast_checkType(ASTNode n, ValueType vt) {
   switch (n.type) {
     case AST_NODE_ADD:
@@ -387,29 +412,48 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         ASTNode* right = node->equality.right;
 
         // write instructions to push left side onto stack
-        if(!ast_writeBytecode(left, hunk, scope)) {
+        if (!ast_writeBytecode(left, hunk, scope)) {
           return false;
         }
 
         // write instructions to push right side onto stack
-        if(!ast_writeBytecode(right, hunk, scope)) {
+        if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
         hunk_write(hunk, OP_TEST_EQ, node->line);
       } break;
+    case AST_NODE_IF:
+       {
+        if (!ast_writeBytecode(node->cIf.condition, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_JUMP_IF_FALSE, 0);
+        hunk_write(hunk, 0, 0);
+
+        Instruction offsetPos = hunk->count - 1;
+
+        if (!ast_writeBytecode(node->cIf.block, hunk, scope)) {
+          return false;
+        }
+
+        Instruction ifEndPos = hunk->count - 1;
+
+        hunk->code[offsetPos] = ifEndPos - offsetPos;
+       } break;
     case AST_NODE_ADD:
       {
         ASTNode* left = node->add.left;
         ASTNode* right = node->add.right;
 
         // write instructions to push left side onto stack
-        if(!ast_writeBytecode(left, hunk, scope)) {
+        if (!ast_writeBytecode(left, hunk, scope)) {
           return false;
         }
 
         // write instructions to push right side onto stack
-        if(!ast_writeBytecode(right, hunk, scope)) {
+        if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
@@ -422,12 +466,12 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         ASTNode* right = node->subtract.right;
 
         // write instructions to push left side onto stack
-        if(!ast_writeBytecode(left, hunk, scope)) {
+        if (!ast_writeBytecode(left, hunk, scope)) {
           return false;
         }
 
         // write instructions to push right side onto stack
-        if(!ast_writeBytecode(right, hunk, scope)) {
+        if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
@@ -440,12 +484,12 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         ASTNode* right = node->multiply.right;
 
         // write instructions to push left side onto stack
-        if(!ast_writeBytecode(left, hunk, scope)) {
+        if (!ast_writeBytecode(left, hunk, scope)) {
           return false;
         }
 
         // write instructions to push right side onto stack
-        if(!ast_writeBytecode(right, hunk, scope)) {
+        if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
@@ -458,12 +502,12 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         ASTNode* right = node->divide.right;
 
         // write instructions to push left side onto stack
-        if(!ast_writeBytecode(left, hunk, scope)) {
+        if (!ast_writeBytecode(left, hunk, scope)) {
           return false;
         }
 
         // write instructions to push right side onto stack
-        if(!ast_writeBytecode(right, hunk, scope)) {
+        if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
