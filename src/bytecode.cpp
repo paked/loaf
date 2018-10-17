@@ -218,17 +218,18 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
   printf("%04d | %04d | ", hunk->lines[offset], offset);
 
   Instruction in = hunk->code[offset];
+
 #define SIMPLE_INSTRUCTION(Code) \
   case Code: \
     { \
-      printf("## Code ##\n"); \
+      printf("%s\n", #Code); \
       return offset + 1; \
     } break;
 
 #define SIMPLE_INSTRUCTION2(Code) \
   case Code: \
       { \
-        printf("## Code ## %d\n", hunk->code[offset + 1]); \
+        printf("%s %d\n", #Code, hunk->code[offset + 1]); \
         return offset + 2; \
       } break;
 
@@ -242,6 +243,8 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_DIVIDE);
 
     SIMPLE_INSTRUCTION(OP_TEST_EQ);
+    SIMPLE_INSTRUCTION(OP_TEST_GT);
+    SIMPLE_INSTRUCTION(OP_TEST_LT);
 
     SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
     SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
@@ -391,6 +394,38 @@ ProgramResult vm_run(VM* vm) {
           c.type = VALUE_BOOL;
 
           c.as.boolean = value_equals(a, b);
+
+          vm_stack_push(vm, c);
+        } break;
+      case OP_TEST_GT:
+        {
+          Value b = vm_stack_pop(vm);
+          Value a = vm_stack_pop(vm);
+
+          if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Value c = {};
+          c.type = VALUE_BOOL;
+
+          c.as.boolean = a.as.number > b.as.number;
+
+          vm_stack_push(vm, c);
+        } break;
+      case OP_TEST_LT:
+        {
+          Value b = vm_stack_pop(vm);
+          Value a = vm_stack_pop(vm);
+
+          if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Value c = {};
+          c.type = VALUE_BOOL;
+
+          c.as.boolean = a.as.number < b.as.number;
 
           vm_stack_push(vm, c);
         } break;

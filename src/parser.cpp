@@ -110,6 +110,10 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
       n = ast_makeOperator(AST_NODE_DIVIDE, t);
     } else if (parser_expect(p, TOKEN_EQUALS, &t)) {
       n = ast_makeOperator(AST_NODE_TEST_EQUAL, t);
+    } else if (parser_expect(p, TOKEN_GREATER, &t)) {
+      n = ast_makeOperator(AST_NODE_TEST_GREATER, t);
+    } else if (parser_expect(p, TOKEN_LESSER, &t)) {
+      n = ast_makeOperator(AST_NODE_TEST_LESSER, t);
     } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
       if (!parser_parseIdentifier(p, &n, t)) {
         return false;
@@ -135,7 +139,13 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
 
   array(ASTNode) working = array_ASTNode_init();
 
-  ASTNodeType precedenceOrder[] = { AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT, AST_NODE_TEST_EQUAL };
+  ASTNodeType precedenceOrder[] = {
+    // Numeric
+    AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT,
+
+    // Comparative
+    AST_NODE_TEST_EQUAL, AST_NODE_TEST_GREATER, AST_NODE_TEST_LESSER
+  };
 
   for (ASTNodeType currentOP : precedenceOrder) {
     psize i = 0;

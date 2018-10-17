@@ -90,6 +90,8 @@ enum ASTNodeType : uint32 {
   AST_NODE_IF,
 
   AST_NODE_TEST_EQUAL,
+  AST_NODE_TEST_GREATER,
+  AST_NODE_TEST_LESSER,
 
   AST_NODE_IDENTIFIER,
   AST_NODE_VALUE,
@@ -202,6 +204,9 @@ ASTNode ast_makeOperator(ASTNodeType op, Token t) {
     case AST_NODE_SUBTRACT:
     case AST_NODE_MULTIPLY:
     case AST_NODE_DIVIDE:
+
+    case AST_NODE_TEST_GREATER:
+    case AST_NODE_TEST_LESSER:
     case AST_NODE_TEST_EQUAL:
       {
         node.type = op;
@@ -337,6 +342,8 @@ bool ast_nodeHasValue(ASTNode n) {
 
 // TODO(harrison): properly propogate errors
 bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
+  printf("node->type %d\n", node->type);
+
   switch (node->type) {
     case AST_NODE_INVALID:
       {
@@ -422,6 +429,40 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         }
 
         hunk_write(hunk, OP_TEST_EQ, node->line);
+      } break;
+    case AST_NODE_TEST_GREATER:
+      {
+        ASTNode* left = node->equality.left;
+        ASTNode* right = node->equality.right;
+
+        // write instructions to push left side onto stack
+        if (!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if (!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_TEST_GT, node->line);
+      } break;
+    case AST_NODE_TEST_LESSER:
+      {
+        ASTNode* left = node->equality.left;
+        ASTNode* right = node->equality.right;
+
+        // write instructions to push left side onto stack
+        if (!ast_writeBytecode(left, hunk, scope)) {
+          return false;
+        }
+
+        // write instructions to push right side onto stack
+        if (!ast_writeBytecode(right, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_TEST_LT, node->line);
       } break;
     case AST_NODE_IF:
        {

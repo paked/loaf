@@ -23,6 +23,8 @@ enum TokenType : uint32 {
   TOKEN_DIVIDE,
 
   TOKEN_EQUALS,
+  TOKEN_GREATER,
+  TOKEN_LESSER,
 
   TOKEN_BRACKET_OPEN,  // (
   TOKEN_BRACKET_CLOSE, // (
@@ -224,6 +226,22 @@ Token scanner_getToken(Scanner* scn) {
 
             scn->head += t.len;
           }
+        } break;
+      case '<':
+        {
+          t.type = TOKEN_LESSER;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
+        } break;
+      case '>':
+        {
+          t.type = TOKEN_GREATER;
+          t.start = scn->head;
+          t.len = 1;
+
+          scn->head += t.len;
         } break;
       case ':':
         {
