@@ -326,8 +326,6 @@ bool parser_parseIf(Parser* p, ASTNode* node) {
         if (parser_parseBlock(p, &block)) {
           *node = ast_makeIf(condition, block);
 
-          printf("%%%%%%%%%%%%%%%%%%%%%%MADE IF\n");
-
           return true;
         }
       }
@@ -336,36 +334,48 @@ bool parser_parseIf(Parser* p, ASTNode* node) {
   return false;
 }
 
+bool parser_parseScope(Parser* p, ASTNode* node) {
+  ASTNode block = ast_makeRoot();
+
+  while (p->head->type != TOKEN_EOF && p->head->type != TOKEN_CURLY_CLOSE) {
+    ASTNode next = {};
+
+    if (parser_parseIf(p, &next)) {
+      // do nothing
+    } else if (parser_parseBlock(p, &next)) {
+      // do nothing
+    } else if (parser_parseStatement(p, &next)) {
+      // TODO(harrison): make this next check part of the parseStatement function
+      if (!parser_expect(p, TOKEN_SEMICOLON)) {
+        assert(!"Syntax error: Expected semicolon but did not find one\n");
+
+        return false;
+      }
+    } else {
+      assert(!"Don't know how to parse this");
+    }
+
+    ast_root_add(&block, next);
+  }
+
+  *node = block;
+
+  return true;
+}
+
 bool parser_parseBlock(Parser* p, ASTNode* node) {
   printf("parsing block\n");
   if (parser_expect(p, TOKEN_CURLY_OPEN)) {
     printf("found curly open\n");
-    ASTNode block = ast_makeRoot();
 
-    while (p->head->type != TOKEN_EOF && p->head->type != TOKEN_CURLY_CLOSE) {
-      ASTNode next = {};
+    ASTNode block = {};
 
-      if (parser_parseIf(p, &next)) {
-        // do nothing
-      } else if (parser_parseStatement(p, &next)) {
-        if (!parser_expect(p, TOKEN_SEMICOLON)) {
-          assert(!"Syntax error: Expected semicolon but did not find one\n");
+    if (parser_parseScope(p, &block)) {
+      if (parser_expect(p, TOKEN_CURLY_CLOSE)) {
+        *node = block;
 
-          return false;
-        }
+        return true;
       }
-
-      ast_root_add(&block, next);
-
-      if (parser_allow(p, TOKEN_CURLY_CLOSE)) {
-        break;
-      }
-    }
-
-    if (parser_expect(p, TOKEN_CURLY_CLOSE)) {
-      *node = block;
-
-      return true;
     }
   }
 
@@ -380,7 +390,7 @@ ParseFunction parseFunctions[] = {parser_parseStatement};
 psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
 
 bool parser_parse(Parser* p) {
-  parser_parseBlock(p, &p->root);
+  parser_parseScope(p, &p->root);
 
   printf("finished building AST\n");
 
