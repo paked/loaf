@@ -46,6 +46,9 @@ struct Scanner {
   char* head;
 
   int line;
+
+  bool reachedNewline;
+  Token lastToken;
 };
 
 void scanner_load(Scanner* scn, char* buf) {
@@ -59,6 +62,7 @@ void scanner_skipWhitespace(Scanner* scn) {
     char c = *scn->head;
 
     if (us_isNewline(c)) {
+      scn->reachedNewline = true;
       scn->head += 1;
       
       scn->line += 1;
@@ -197,6 +201,30 @@ Token scanner_readSinglelineComment(Scanner* scn) {
 
 Token scanner_getToken(Scanner* scn) {
   scanner_skipWhitespace(scn);
+
+  if (scn->reachedNewline) {
+    Token breakToken = {};
+    breakToken.type = TOKEN_SEMICOLON;
+    breakToken.start = scn->head;
+    breakToken.len = 0;
+    breakToken.line = scn->line;
+
+    switch (scn->lastToken.type) {
+      case TOKEN_NUMBER:
+      case TOKEN_IDENTIFIER:
+        {
+          scn->lastToken = breakToken;
+
+          return breakToken;
+        } break;
+      default:
+        {
+          // whatever
+        } break;
+    }
+
+    scn->reachedNewline = false;
+  }
 
   // Start with an illegal token
   Token t = {};
@@ -337,6 +365,8 @@ Token scanner_getToken(Scanner* scn) {
         } break;
     }
   }
+
+  scn->lastToken = t;
 
   return t;
 }
