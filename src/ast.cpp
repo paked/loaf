@@ -413,57 +413,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
       } break;
-    case AST_NODE_TEST_EQUAL:
-      {
-        ASTNode* left = node->equality.left;
-        ASTNode* right = node->equality.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_TEST_EQ, node->line);
-      } break;
-    case AST_NODE_TEST_GREATER:
-      {
-        ASTNode* left = node->equality.left;
-        ASTNode* right = node->equality.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_TEST_GT, node->line);
-      } break;
-    case AST_NODE_TEST_LESSER:
-      {
-        ASTNode* left = node->equality.left;
-        ASTNode* right = node->equality.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_TEST_LT, node->line);
-      } break;
     case AST_NODE_IF:
        {
         if (!ast_writeBytecode(node->cIf.condition, hunk, scope)) {
@@ -483,77 +432,17 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk->code[offsetPos] = ifEndPos - offsetPos;
        } break;
-    case AST_NODE_ADD:
-      {
-        ASTNode* left = node->add.left;
-        ASTNode* right = node->add.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_ADD, node->line);
-      } break;
-    case AST_NODE_SUBTRACT:
-      {
-        ASTNode* left = node->subtract.left;
-
-        ASTNode* right = node->subtract.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_SUBTRACT, node->line);
-      } break;
-    case AST_NODE_MULTIPLY:
-      {
-        ASTNode* left = node->multiply.left;
-
-        ASTNode* right = node->multiply.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_MULTIPLY, node->line);
-      } break;
-    case AST_NODE_DIVIDE:
-      {
-        ASTNode* left = node->divide.left;
-
-        ASTNode* right = node->divide.right;
-
-        // write instructions to push left side onto stack
-        if (!ast_writeBytecode(left, hunk, scope)) {
-          return false;
-        }
-
-        // write instructions to push right side onto stack
-        if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        hunk_write(hunk, OP_DIVIDE, node->line);
-      } break;
+#define BINARY_POP() \
+       do { \
+         ASTNode* left = node->binary.left; \
+         ASTNode* right = node->binary.right; \
+         if (!ast_writeBytecode(left, hunk, scope)) { \
+           return false; \
+         } \
+         if (!ast_writeBytecode(right, hunk, scope)) { \
+           return false; \
+         } \
+       } while (false);
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, value_make((float) node->number.number));
@@ -579,6 +468,49 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_GET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
       } break;
+    case AST_NODE_TEST_EQUAL:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_TEST_EQ, node->line);
+      } break;
+    case AST_NODE_TEST_GREATER:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_TEST_GT, node->line);
+      } break;
+    case AST_NODE_TEST_LESSER:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_TEST_LT, node->line);
+      } break;
+    case AST_NODE_ADD:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_ADD, node->line);
+      } break;
+    case AST_NODE_SUBTRACT:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_SUBTRACT, node->line);
+      } break;
+    case AST_NODE_MULTIPLY:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_MULTIPLY, node->line);
+      } break;
+    case AST_NODE_DIVIDE:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_DIVIDE, node->line);
+      } break;
+#undef BINARY_POP
     default:
       {
         printf("ERROR: Don't know how to get bytecode from node type %d\n", node->type);

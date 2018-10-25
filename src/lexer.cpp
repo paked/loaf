@@ -235,7 +235,7 @@ Token scanner_getToken(Scanner* scn) {
   } else if (us_isDigit(*scn->head)) {
     t = scanner_readNumber(scn);
   } else if (scanner_isLetter(scn)) {
-    // NOTE(harrison): this will also map identifiers
+    // NOTE(harrison): this will also map tokens
     t = scanner_readIdentifier(scn);
   } else {
     switch (*scn->head) {
