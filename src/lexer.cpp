@@ -238,6 +238,19 @@ Token scanner_getToken(Scanner* scn) {
     // NOTE(harrison): this will also map tokens
     t = scanner_readIdentifier(scn);
   } else {
+#define SIMPLE_TOKEN(Type) \
+    do { \
+      t.type = Type; \
+      t.start = scn->head; \
+      t.len = 1; \
+\
+      scn->head += t.len; \
+    } while (false)
+#define SIMPLE_CASE(Char, Type) \
+    case Char: \
+      { \
+        SIMPLE_TOKEN(Type); \
+      } break;
     switch (*scn->head) {
       case '=':
         {
@@ -248,28 +261,8 @@ Token scanner_getToken(Scanner* scn) {
 
             scn->head += t.len;
           } else {
-            t.type = TOKEN_ASSIGNMENT;
-            t.start = scn->head;
-            t.len = 1;
-
-            scn->head += t.len;
+            SIMPLE_TOKEN(TOKEN_ASSIGNMENT);
           }
-        } break;
-      case '<':
-        {
-          t.type = TOKEN_LESSER;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '>':
-        {
-          t.type = TOKEN_GREATER;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
         } break;
       case ':':
         {
@@ -281,70 +274,6 @@ Token scanner_getToken(Scanner* scn) {
             scn->head += t.len;
           }
         } break;
-      case ';':
-        {
-          t.type = TOKEN_SEMICOLON;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '+':
-        {
-          t.type = TOKEN_ADD;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '-':
-        {
-          t.type = TOKEN_SUBTRACT;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '*':
-        {
-          t.type = TOKEN_MULTIPLY;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '(':
-        {
-          t.type = TOKEN_BRACKET_OPEN;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case ')':
-        {
-          t.type = TOKEN_BRACKET_CLOSE;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '{':
-        {
-          t.type = TOKEN_CURLY_OPEN;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
-      case '}':
-        {
-          t.type = TOKEN_CURLY_CLOSE;
-          t.start = scn->head;
-          t.len = 1;
-
-          scn->head += t.len;
-        } break;
       case '/':
         {
           if (scanner_peek(scn) == '*') {
@@ -352,18 +281,26 @@ Token scanner_getToken(Scanner* scn) {
           } else if (scanner_peek(scn) == '/') {
             t = scanner_readSinglelineComment(scn);
           } else {
-            t.type = TOKEN_DIVIDE;
-            t.start = scn->head;
-            t.len = 1;
-
-            scn->head += t.len;
+            SIMPLE_TOKEN(TOKEN_DIVIDE);
           }
         } break;
+      SIMPLE_CASE('<', TOKEN_LESSER);
+      SIMPLE_CASE('>', TOKEN_GREATER);
+      SIMPLE_CASE(';', TOKEN_SEMICOLON);
+      SIMPLE_CASE('+', TOKEN_ADD);
+      SIMPLE_CASE('-', TOKEN_SUBTRACT);
+      SIMPLE_CASE('*', TOKEN_MULTIPLY);
+      SIMPLE_CASE('(', TOKEN_BRACKET_OPEN);
+      SIMPLE_CASE(')', TOKEN_BRACKET_CLOSE);
+      SIMPLE_CASE('{', TOKEN_CURLY_OPEN);
+      SIMPLE_CASE('}', TOKEN_CURLY_CLOSE);
       default:
         {
           printf("Something is broken!\n");
         } break;
     }
+#undef SIMPLE_TOKEN
+#undef SIMPLE_CASE
   }
 
   scn->lastToken = t;
