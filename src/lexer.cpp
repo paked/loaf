@@ -211,6 +211,8 @@ Token scanner_getToken(Scanner* scn) {
 
     switch (scn->lastToken.type) {
       case TOKEN_NUMBER:
+      case TOKEN_TRUE:
+      case TOKEN_FALSE:
       case TOKEN_IDENTIFIER:
         {
           scn->lastToken = breakToken;
