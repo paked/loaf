@@ -1,4 +1,4 @@
-x := 5
+x := 5 // declare symbol
 y := 2
 z := false
 

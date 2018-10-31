@@ -298,14 +298,16 @@ Token scanner_getToken(Scanner* scn) {
       SIMPLE_CASE('}', TOKEN_CURLY_CLOSE);
       default:
         {
-          printf("Something is broken!\n");
+          assert(!"Something is broken!\n");
         } break;
     }
 #undef SIMPLE_TOKEN
 #undef SIMPLE_CASE
   }
 
-  scn->lastToken = t;
+  if (t.type != TOKEN_COMMENT) {
+    scn->lastToken = t;
+  }
 
   return t;
 }
