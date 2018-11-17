@@ -28,6 +28,7 @@ enum OPCode : Instruction {
 };
 
 enum ValueType {
+  VALUE_NIL,
   VALUE_NUMBER,
   VALUE_BOOL,
 
@@ -180,7 +181,6 @@ struct Hunk {
   uint32* lines;
 
   Constants constants;
-  Constants locals;
 };
 
 bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
@@ -208,10 +208,6 @@ bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
 
 int hunk_addConstant(Hunk* hunk, Value val) {
   return constants_add(&hunk->constants, val);
-}
-
-int hunk_addLocal(Hunk* hunk, Value val) {
-  return constants_add(&hunk->locals, val);
 }
 
 int hunk_disassembleInstruction(Hunk* hunk, int offset) {
@@ -261,9 +257,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     case OP_GET_LOCAL:
       {
         int idx = hunk->code[offset + 1];
-        printf("%s %d ", "OP_GET_LOCAL", idx);
-
-        value_println(hunk->locals.values[idx]);
+        printf("%s %d\n", "OP_GET_LOCAL", idx);
 
         return offset + 2;
       } break;
@@ -303,6 +297,8 @@ struct VM {
   Value stack[VM_STACK_MAX];
   Value* stackTop;
 
+  Value slots[VM_LOCALS_MAX];
+
   Instruction* ip;
 };
 
@@ -329,6 +325,15 @@ Value vm_stack_pop(VM* vm) {
 ProgramResult vm_run(VM* vm) {
 #define READ() (*vm->ip++)
   while (true) {
+    for (int i = 0; i < VM_LOCALS_MAX; i++) {
+      if (vm->slots[i].type == VALUE_NIL) {
+        continue;
+      }
+
+      printf("slot %d: ", i);
+      value_println(vm->slots[i]);
+    }
+
     int offset = (int) (vm->ip - vm->hunk->code);
     hunk_disassembleInstruction(vm->hunk, offset);
 
@@ -353,12 +358,12 @@ ProgramResult vm_run(VM* vm) {
           Instruction id = READ();
 
           // TODO(harrison): Store local variables in the VM, not in a Hunk
-          vm->hunk->locals.values[id] = vm_stack_pop(vm);
+          vm->slots[id] = vm_stack_pop(vm);
         } break;
       case OP_GET_LOCAL:
         {
           Instruction id = READ();
-          Value val = vm->hunk->locals.values[id];
+          Value val = vm->slots[id];
 
           vm_stack_push(vm, val);
         } break;

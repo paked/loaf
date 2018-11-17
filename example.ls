@@ -1,8 +1,7 @@
-x := 5 // declare symbol
-y := 2
-z := false
+x := 2 // declare symbol
+y := 100
 
-if x > y + 2 {
+if x < 0 {
     y = 1994
 }
 

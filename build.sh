@@ -37,6 +37,8 @@ pushd $BUILD_DIR
 echo "Building program..."
 $GPP -o loaf -I$SRC_DIR $SRC_DIR/main.cpp $USLIB_FLAGS
 
+compileCheckError
+
 echo "Done!"
 
 END_TIME=$(date +%s)

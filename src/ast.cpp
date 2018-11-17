@@ -8,17 +8,19 @@ struct Variable {
 
 array_for(Variable);
 
+#define SCOPE_MAX (256)
 // TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
 struct Scope {
-  array(Variable) variables;
+  int count;
+  Variable variables[SCOPE_MAX];
 };
 
 void scope_init(Scope* s) {
-  s->variables = array_Variable_init();
+  s->count = 0;
 }
 
 bool scope_exists(Scope* s, char* name, int len) {
-  for (psize i = 0; i < array_count(s->variables); i++) {
+  for (int i = 0; i < s->count; i++) {
     Variable v = s->variables[i];
 
     if (v.len != len) {
@@ -34,7 +36,7 @@ bool scope_exists(Scope* s, char* name, int len) {
 }
 
 bool scope_get(Scope* s, char* name, int len, Variable* var) {
-  for (psize i = 0; i < array_count(s->variables); i++) {
+  for (int i = 0; i < s->count; i++) {
     Variable v = s->variables[i];
 
     if (v.len != len) {
@@ -51,9 +53,9 @@ bool scope_get(Scope* s, char* name, int len, Variable* var) {
   return false;
 }
 
-void scope_set(Scope* s, Variable var) {
+int scope_set(Scope* s, Variable var) {
   // If the variable exists, update it
-  for (psize i = 0; i < array_count(s->variables); i++) {
+  for (int i = 0; i < s->count; i++) {
     Variable v = s->variables[i];
 
     if (v.len != var.len) {
@@ -63,12 +65,19 @@ void scope_set(Scope* s, Variable var) {
     if (memcmp(var.start, v.start, var.len) == 0) {
       s->variables[i] = var;
 
-      return;
+      return i;
     }
   }
 
+  assert(s->count < 255);
+
+  var.index = s->count;
+
   // If it doesn't, add a new one
-  array_Variable_add(&s->variables, var);
+  s->variables[var.index] = var;
+  s->count += 1;
+
+  return var.index;
 }
 
 #define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
@@ -406,9 +415,9 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        var.index = hunk_addLocal(hunk, value_make(VALUE_NUMBER));
+        var.index = scope_set(scope, var);
 
-        scope_set(scope, var);
+        printf("INDEX: %d\n", var.index);
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
