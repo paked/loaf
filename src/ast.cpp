@@ -431,13 +431,13 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_JUMP_IF_FALSE, 0);
         hunk_write(hunk, 0, 0);
 
-        Instruction offsetPos = hunk->count - 1;
+        Instruction offsetPos = hunk_getCount(hunk) - 1;
 
         if (!ast_writeBytecode(node->cIf.block, hunk, scope)) {
           return false;
         }
 
-        Instruction ifEndPos = hunk->count - 1;
+        Instruction ifEndPos = hunk_getCount(hunk) - 1;
 
         hunk->code[offsetPos] = ifEndPos - offsetPos;
        } break;

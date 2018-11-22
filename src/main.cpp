@@ -11,6 +11,7 @@
 
 #include <array.cpp>
 
+#include <value.cpp>
 #include <bytecode.cpp>
 #include <lexer.cpp>
 #include <ast.cpp>

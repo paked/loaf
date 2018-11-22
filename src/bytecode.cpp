@@ -27,187 +27,39 @@ enum OPCode : Instruction {
   OP_JUMP_IF_FALSE,
 };
 
-enum ValueType {
-  VALUE_NIL,
-  VALUE_NUMBER,
-  VALUE_BOOL,
+array_for(Instruction);
+array_for(uint32);
+array_for(Value);
 
-  // VALUE_OBJ
-};
-
-#define VALUE_IS_NUMBER(v) ((v).type == VALUE_NUMBER)
-#define VALUE_IS_BOOL(v) ((v).type == VALUE_BOOL)
-
-struct Value {
-  ValueType type;
-
-  union {
-    float number;
-    bool boolean;
-
-    // Object* object;
-  } as;
-};
-
-Value value_make(ValueType type) {
-  Value v = {};
-  v.type = type;
-
-  switch (v.type) {
-    case VALUE_NUMBER:
-      { v.as.number = 0; } break;
-    case VALUE_BOOL:
-      { v.as.boolean = false; } break;
-    default:
-      {
-        assert(!"Unknown value type");
-      }
-  }
-
-  return v;
-}
-
-Value value_make(float t) {
-  Value v = {};
-  v.type = VALUE_NUMBER;
-
-  v.as.number = t;
-
-  return v;
-}
-
-Value value_make(bool t) {
-  Value v = {};
-  v.type = VALUE_BOOL;
-
-  v.as.boolean = t;
-
-  return v;
-}
-
-void value_print(Value v) {
-  switch (v.type) {
-    case VALUE_NUMBER:
-      {
-        printf("%f", v.as.number);
-      } break;
-    case VALUE_BOOL:
-      {
-        printf(v.as.boolean ? "true" : "false");
-
-        break;
-      }
-    default:
-      {
-        printf("unknown: %d", v.type);
-      }
-  };
-}
-
-void value_println(Value v) {
-  value_print(v);
-
-  printf("\n");
-}
-
-bool value_equals(Value left, Value right) {
-  if (left.type != right.type) {
-    // TODO(harrison): this should not be possible. We need a type system.
-
-    assert(!"Can't compare variables of different types");
-  }
-
-  switch (left.type) {
-    case VALUE_BOOL:
-      {
-        return left.as.boolean == right.as.boolean;
-      } break;
-    case VALUE_NUMBER:
-      {
-        return us_equals(left.as.number, right.as.number);
-      } break;
-    default:
-      {
-        assert(!"Unknown type");
-      }
-  }
-
-  return false;
-}
-
-// Constants keeps track of all the available constants in a program. Zero is initialisation.
-// TODO(harrison): force constants count to fit within the maximum addressable space by opcodes (256)
-#define CONSTANTS_CAPACITY_GROW(c) ( ((c) < 8) ? 8 : (c)*2 )
-struct Constants {
-  int count;
-  int capacity;
-
-  // NOTE(harrison): Don't store any references to this pointer. It can change
-  // unexpectedly.
-  Value* values;
-};
-
-// returns -1 on failure
-int constants_add(Constants* constants, Value val) {
-  if (constants->capacity < constants->count + 1) {
-    constants->capacity = CONSTANTS_CAPACITY_GROW(constants->capacity);
-
-    constants->values = REALLOC(Value, constants->values, constants->capacity);
-
-    if (constants->values == 0) {
-      return -1;
-    }
-  }
-
-  *(constants->values + constants->count) = val;
-
-  constants->count += 1;
-
-  return constants->count - 1;
-}
-
-// Hunk represents a section of Loaf bytecode from a file/module/whatever
-// distinction I decide to make. Zero is initialisation. There is no explicit
-// free function as Hunk's are expected to last the duration of the program, so
-// the operating system can dispose of their memory much better than us.
-#define HUNK_CAPACITY_GROW(c) ( ((c) < 8) ? 8 : (c)*2 )
 struct Hunk {
-  int count;
-  int capacity;
+  array(Instruction) code;
+  array(uint32) lines;
 
-  // NOTE(harrison): Don't store any references to this pointer. It can change
-  // unexpectedly.
-  Instruction* code;
-  uint32* lines;
-
-  Constants constants;
+  array(Value) constants;
 };
 
-bool hunk_write(Hunk* hunk, Instruction in, uint32 line) {
-  if (hunk->capacity < hunk->count + 1) {
-    hunk->capacity = HUNK_CAPACITY_GROW(hunk->capacity);
+void hunk_init(Hunk* hunk) {
+  hunk->code = array_Instruction_init();
+  hunk->lines = array_uint32_init();
 
-    hunk->code = REALLOC(Instruction, hunk->code, hunk->capacity);
-    if (hunk->code == 0) {
-      return false;
-    }
+  hunk->constants = array_Value_init();
+}
 
-    hunk->lines = REALLOC(uint32, hunk->lines, hunk->capacity);
-    if (hunk->lines == 0) {
-      return false;
-    }
-  }
+int hunk_getCount(Hunk* hunk) {
+  return (int) array_count(hunk->code);
+}
 
-  *(hunk->code + hunk->count) = in;
-  *(hunk->lines + hunk->count) = line;
-
-  hunk->count += 1;
+bool hunk_write(Hunk* hunk, Instruction i, uint32 line) {
+  array_Instruction_add(&hunk->code, i);
+  array_uint32_add(&hunk->lines, line);
 
   return true;
 }
 
 int hunk_addConstant(Hunk* hunk, Value val) {
-  return constants_add(&hunk->constants, val);
+  array_Value_add(&hunk->constants, val);
+
+  return ((int) array_count(hunk->constants)) - 1;
 }
 
 int hunk_disassembleInstruction(Hunk* hunk, int offset) {
@@ -250,7 +102,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
         int idx = hunk->code[offset + 1];
         printf("%s %d ", "OP_CONSTANT", idx);
 
-        value_println(hunk->constants.values[idx]);
+        value_println(hunk->constants[idx]);
 
         return offset + 2;
       } break;
@@ -278,7 +130,7 @@ void hunk_disassemble(Hunk* hunk, const char* name) {
 
   int i = 0;
 
-  while (i < hunk->count) {
+  while (i < hunk_getCount(hunk)) {
     i += hunk_disassembleInstruction(hunk, i);
   }
 }
@@ -349,7 +201,7 @@ ProgramResult vm_run(VM* vm) {
       case OP_CONSTANT:
         {
           Instruction id = READ();
-          Value val = vm->hunk->constants.values[id];
+          Value val = vm->hunk->constants[id];
 
           vm_stack_push(vm, val);
         } break;
@@ -357,7 +209,6 @@ ProgramResult vm_run(VM* vm) {
         {
           Instruction id = READ();
 
-          // TODO(harrison): Store local variables in the VM, not in a Hunk
           vm->slots[id] = vm_stack_pop(vm);
         } break;
       case OP_GET_LOCAL:

@@ -26,7 +26,8 @@ void parser_init(Parser* p, array(Token) tokens) {
   p->tokens = tokens;
 
   p->head = p->tokens;
-  p->hunk = {};
+
+  hunk_init(&p->hunk);
 }
 
 void parser_advance(Parser* p) {

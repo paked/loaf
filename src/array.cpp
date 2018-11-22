@@ -1,5 +1,9 @@
 // A basic dynamic array implementation. Probably should go into uslib.
 //
+// WARNING: This is HORRIBLE code. The following macro is a SIN. You need to
+// confess to someone you love after using it or else you WILL end up in The
+// Bad Place.
+//
 // Usage:
 //
 // array_for(int);
@@ -14,6 +18,8 @@
 //    return 0;
 // }
 
+// TODO(harrison): Give up and rewrite this with generics
+
 #define ARRAY_CAPACITY_GROW(c) ( ((c) < 8) ? 8 : (c)*2 )
 
 struct ArrayHeader {
@@ -23,13 +29,10 @@ struct ArrayHeader {
 
 #define array(Type) Type*
 
-#define array_header(Array) ((ArrayHeader*) Array - 1)
-#define array_count(Array) (array_header(Array)->count)
+#define array_header(Array) ((ArrayHeader*) (Array) - 1)
+#define array_count(Array) (array_header((Array))->count)
 
-// The following macro generates two functions: one to initialise an array, one
-// to add elements to previously initialised array.
-//
-// I can't think of a way to un-macro it right now, so it's going to stay as is.
+// Hear be dragons...
 #define array_for_name(Type, name) \
 Type* array_ ## name ## _init() { \
   int initialCapacity = ARRAY_CAPACITY_GROW(0); \
