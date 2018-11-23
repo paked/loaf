@@ -97,6 +97,7 @@ enum ASTNodeType : uint32 {
   AST_NODE_DIVIDE,
 
   AST_NODE_IF,
+  AST_NODE_FUNCTION_DECLARATION,
 
   AST_NODE_TEST_EQUAL,
   AST_NODE_TEST_GREATER,
@@ -137,6 +138,12 @@ struct ASTNode_If {
   ASTNode* block;
 };
 
+struct ASTNode_Function {
+  Token identifier;
+
+  ASTNode* block;
+};
+
 struct ASTNode {
   ASTNodeType type;
 
@@ -163,6 +170,8 @@ struct ASTNode {
     ASTNode_Number number;
 
     ASTNode_If cIf;
+
+    ASTNode_Function functionDeclaration;
   };
 };
 
@@ -306,6 +315,19 @@ ASTNode ast_makeIf(ASTNode condition, ASTNode block) {
   return node;
 }
 
+ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block) {
+  assert(block.type == AST_NODE_ROOT);
+
+  ASTNode node = {};
+  node.type = AST_NODE_FUNCTION_DECLARATION;
+
+  node.functionDeclaration.identifier = ident;
+  node.functionDeclaration.block = (ASTNode*) malloc(sizeof(block));
+  *node.functionDeclaration.block = block;
+
+  return node;
+}
+
 bool ast_checkType(ASTNode n, ValueType vt) {
   switch (n.type) {
     case AST_NODE_ADD:
@@ -421,6 +443,33 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.index, node->line);
+      } break;
+    case AST_NODE_FUNCTION_DECLARATION:
+      {
+        Token ident = node->functionDeclaration.identifier;
+        Value nameVal = value_make(ident.start, ident.len);
+
+        Hunk* h = (Hunk*) malloc(sizeof(Hunk));
+        hunk_init(h);
+
+        Scope s = {};
+        scope_init(&s);
+
+        if (!ast_writeBytecode(node->functionDeclaration.block, h, &s)) {
+          return false;
+        }
+
+        Value funcVal = value_make(h);
+
+        int name = hunk_addConstant(hunk, nameVal);
+        int func = hunk_addConstant(hunk, funcVal);
+
+        hunk_write(hunk, OP_CONSTANT, node->line);
+        hunk_write(hunk, name, node->line);
+        hunk_write(hunk, OP_CONSTANT, node->line);
+        hunk_write(hunk, func, node->line);
+
+        hunk_write(hunk, OP_SET_GLOBAL, node->line);
       } break;
     case AST_NODE_IF:
        {

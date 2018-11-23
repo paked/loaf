@@ -13,6 +13,7 @@ enum TokenType : uint32 {
   TOKEN_TRUE,
   TOKEN_FALSE,
   TOKEN_IF,
+  TOKEN_FUNC,
 
   TOKEN_ASSIGNMENT,
   TOKEN_ASSIGNMENT_DECLARATION,
@@ -130,9 +131,12 @@ Token scanner_readIdentifier(Scanner* scn) {
   // true
   // false
   // if
+  // func
   if (t.len == 4) {
     if (strncmp(t.start, "true", 4) == 0) {
       t.type = TOKEN_TRUE;
+    } else if (strncmp(t.start, "func", 4) == 0) {
+      t.type = TOKEN_FUNC;
     }
   } else if (t.len == 5) {
     if (strncmp(t.start, "false", 5) == 0) {
@@ -237,7 +241,7 @@ Token scanner_getToken(Scanner* scn) {
   } else if (us_isDigit(*scn->head)) {
     t = scanner_readNumber(scn);
   } else if (scanner_isLetter(scn)) {
-    // NOTE(harrison): this will also map tokens
+    // NOTE(harrison): this will also map keywords
     t = scanner_readIdentifier(scn);
   } else {
 #define SIMPLE_TOKEN(Type) \

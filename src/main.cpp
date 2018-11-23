@@ -10,8 +10,10 @@
 #define REALLOC(Type, ptr, count) ((Type*) realloc(ptr, count * sizeof(Type)))
 
 #include <array.cpp>
-
 #include <value.cpp>
+
+#include <table.cpp>
+
 #include <bytecode.cpp>
 #include <lexer.cpp>
 #include <ast.cpp>
@@ -68,7 +70,7 @@ int main(int argc, char** argv) {
 
     array_Token_add(&tokens, t);
 
-    printf("val: %.*s\n", t.len, t.start);
+    printf("val: %.*s (%d)\n", t.len, t.start, t.type);
 
     if (t.type == TOKEN_EOF) {
       printf("Got through all tokens\n");
@@ -77,16 +79,19 @@ int main(int argc, char** argv) {
     }
   }
 
+  Hunk hunk = {};
+  hunk_init(&hunk);
+
   Parser parser = {};
   parser_init(&parser, tokens);
 
-  if (!parser_parse(&parser)) {
+  if (!parser_parse(&parser, &hunk)) {
     return -1;
   }
 
   VM vm = {0};
 
-  vm_load(&vm, &parser.hunk);
+  vm_load(&vm, &hunk);
 
   ProgramResult res = vm_run(&vm);
 

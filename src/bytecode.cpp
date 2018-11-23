@@ -1,3 +1,16 @@
+// How to define a function
+//
+// Constants:
+// 0. Value [String, "main"]
+// 1. Value [Function, { x }
+//
+// OP_CONSTANT 0
+// OP_CONSTANT 1
+//
+// OP_SET_GLOBAL
+// -- defines function "main" as code "x". takes a string and function value
+// off the stack
+
 typedef uint16 Instruction;
 
 enum OPCode : Instruction {
@@ -5,6 +18,9 @@ enum OPCode : Instruction {
 
   OP_SET_LOCAL,
   OP_GET_LOCAL,
+
+  OP_SET_GLOBAL,
+  OP_GET_GLOBAL,
 
   // Load constant onto stack
   OP_CONSTANT,
@@ -82,6 +98,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
       } break;
 
   switch (in) {
+    SIMPLE_INSTRUCTION(OP_SET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_RETURN);
     SIMPLE_INSTRUCTION(OP_NEGATE);
 
@@ -144,6 +161,7 @@ enum ProgramResult : uint32 {
 #define VM_STACK_MAX (256)
 #define VM_LOCALS_MAX (256)
 struct VM {
+  Table globals;
   Hunk* hunk;
 
   Value stack[VM_STACK_MAX];
@@ -155,10 +173,10 @@ struct VM {
 };
 
 void vm_load(VM* vm, Hunk* hunk) {
+  table_init(&vm->globals);
+
   vm->hunk = hunk;
-
   vm->ip = hunk->code;
-
   vm->stackTop = vm->stack;
 }
 
@@ -217,6 +235,17 @@ ProgramResult vm_run(VM* vm) {
           Value val = vm->slots[id];
 
           vm_stack_push(vm, val);
+        } break;
+      case OP_SET_GLOBAL:
+        {
+          Value func = vm_stack_pop(vm);
+          Value name = vm_stack_pop(vm);
+
+          if (name.type != VALUE_STRING) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          table_set(&vm->globals, name.as.string, func);
         } break;
       case OP_JUMP_IF_FALSE:
         {

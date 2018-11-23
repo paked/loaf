@@ -17,8 +17,6 @@ struct Parser {
   array(Token) tokens;
   Token* head;
 
-  Hunk hunk;
-
   ASTNode root;
 };
 
@@ -26,8 +24,6 @@ void parser_init(Parser* p, array(Token) tokens) {
   p->tokens = tokens;
 
   p->head = p->tokens;
-
-  hunk_init(&p->hunk);
 }
 
 void parser_advance(Parser* p) {
@@ -335,6 +331,26 @@ bool parser_parseIf(Parser* p, ASTNode* node) {
   return false;
 }
 
+bool parser_parseBlock(Parser* p, ASTNode* node);
+
+bool parser_parseFunctionDeclaration(Parser* p, ASTNode* node) {
+  if (parser_expect(p, TOKEN_FUNC)) {
+    Token ident;
+
+    if (parser_expect(p, TOKEN_IDENTIFIER, &ident)) {
+      ASTNode source;
+
+      if (parser_parseBlock(p, &source)) {
+        *node = ast_makeFunctionDeclaration(ident, source);
+
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 bool parser_parseScope(Parser* p, ASTNode* node) {
   ASTNode block = ast_makeRoot();
 
@@ -342,6 +358,8 @@ bool parser_parseScope(Parser* p, ASTNode* node) {
     ASTNode next = {};
 
     if (parser_parseIf(p, &next)) {
+      // do nothing
+    } else if (parser_parseFunctionDeclaration(p, &next)) {
       // do nothing
     } else if (parser_parseBlock(p, &next)) {
       // do nothing
@@ -390,7 +408,7 @@ typedef bool (*ParseFunction)(Parser* p, ASTNode* node);
 ParseFunction parseFunctions[] = {parser_parseStatement};
 psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
 
-bool parser_parse(Parser* p) {
+bool parser_parse(Parser* p, Hunk* hunk) {
   parser_parseScope(p, &p->root);
 
   printf("finished building AST\n");
@@ -398,14 +416,14 @@ bool parser_parse(Parser* p) {
   Scope scope = {};
   scope_init(&scope);
 
-  if (!ast_writeBytecode(&p->root, &p->hunk, &scope)) {
+  if (!ast_writeBytecode(&p->root, hunk, &scope)) {
     printf("Could not generate bytecode\n");
 
     return false;
   }
 
   // Need to show some output
-  hunk_write(&p->hunk, OP_RETURN, 0);
+  hunk_write(hunk, OP_RETURN, 0);
 
   return true;
 }
