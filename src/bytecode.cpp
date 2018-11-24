@@ -41,6 +41,8 @@ enum OPCode : Instruction {
   OP_TEST_AND,  // &&
 
   OP_JUMP_IF_FALSE,
+
+  OP_LOG,
 };
 
 array_for(Instruction);
@@ -99,6 +101,8 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
   switch (in) {
     SIMPLE_INSTRUCTION(OP_SET_GLOBAL);
+    SIMPLE_INSTRUCTION(OP_GET_GLOBAL);
+    SIMPLE_INSTRUCTION(OP_LOG);
     SIMPLE_INSTRUCTION(OP_RETURN);
     SIMPLE_INSTRUCTION(OP_NEGATE);
 
@@ -159,17 +163,25 @@ enum ProgramResult : uint32 {
 };
 
 #define VM_STACK_MAX (256)
-#define VM_LOCALS_MAX (256)
+#define VM_FRAME_MAX (32)
+
+struct Frame {
+  Hunk* hunk;
+  Instruction* ip;
+
+  int stackFrom;
+
+  Value slots[VM_LOCALS_MAX];
+};
+
 struct VM {
   Table globals;
-  Hunk* hunk;
 
   Value stack[VM_STACK_MAX];
   Value* stackTop;
 
-  Value slots[VM_LOCALS_MAX];
-
-  Instruction* ip;
+  Frame frames[VM_FRAME_MAX];
+  int currentFrame;
 };
 
 void vm_load(VM* vm, Hunk* hunk) {
@@ -247,6 +259,37 @@ ProgramResult vm_run(VM* vm) {
 
           table_set(&vm->globals, name.as.string, func);
         } break;
+      case OP_GET_GLOBAL:
+        {
+          Value name = vm_stack_pop(vm);
+
+          if (name.type != VALUE_STRING) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Value func;
+
+          if (!table_get(&vm->globals, name.as.string, &func)) {
+            printf("ERROR: unknown function\n");
+
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          vm_stack_push(func);
+
+          printf("&&&&&&&&&&&&&&&&&&&&& value: ");
+          value_println(func);
+        } break;
+      case OP_CALL:
+        {
+          // pop function
+          // create new call frame
+          //  - set new ip
+          //  - new slots
+          //  - execute code
+          //  - break out
+          //  - pop all stack additions, push return value
+        } break;
       case OP_JUMP_IF_FALSE:
         {
           Value v = vm_stack_pop(vm);
@@ -267,6 +310,15 @@ ProgramResult vm_run(VM* vm) {
           }
 
           v.as.number *= -1;
+
+          vm_stack_push(vm, v);
+        } break;
+      case OP_LOG:
+        {
+          Value v = vm_stack_pop(vm);
+
+          printf("###############LOGGING: ");
+          value_println(v);
 
           vm_stack_push(vm, v);
         } break;

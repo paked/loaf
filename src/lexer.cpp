@@ -30,8 +30,10 @@ enum TokenType : uint32 {
   TOKEN_BRACKET_OPEN,  // (
   TOKEN_BRACKET_CLOSE, // (
 
-  TOKEN_CURLY_OPEN, // {
-  TOKEN_CURLY_CLOSE // }
+  TOKEN_CURLY_OPEN,   // {
+  TOKEN_CURLY_CLOSE,  // }
+
+  TOKEN_LOG
 };
 
 struct Token {
@@ -142,6 +144,10 @@ Token scanner_readIdentifier(Scanner* scn) {
     if (strncmp(t.start, "false", 5) == 0) {
       t.type = TOKEN_FALSE;
     }
+  } else if (t.len == 3) {
+    if (strncmp(t.start, "log", 3) == 0) {
+      t.type = TOKEN_LOG;
+    }
   } else if (t.len == 2) {
     if (strncmp(t.start, "if", 2) == 0) {
       t.type = TOKEN_IF;
@@ -218,6 +224,8 @@ Token scanner_getToken(Scanner* scn) {
       case TOKEN_TRUE:
       case TOKEN_FALSE:
       case TOKEN_IDENTIFIER:
+      case TOKEN_BRACKET_CLOSE:
+      case TOKEN_LOG:
         {
           scn->lastToken = breakToken;
 

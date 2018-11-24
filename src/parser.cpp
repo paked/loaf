@@ -66,6 +66,16 @@ bool parser_expect(Parser *p, TokenType type, Token* tok = 0) {
 bool parser_parseIdentifier(Parser* p, ASTNode* node, Token tIdent) {
   assert(tIdent.type == TOKEN_IDENTIFIER);
 
+  if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+    if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+      *node = ast_makeFunctionCall(tIdent);
+
+      return true;
+    }
+
+    return false;
+  }
+
   /*
   if (parser_expect(TOKEN_BRACKET_OPEN)) {
     *node = ast_makeFunctionCall(tIdent, parameters);
@@ -291,23 +301,13 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
       return true;
     }
 
-    /* else if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-      // TODO(harrison): parse expression
-      Token tIdentVal;
-
-      if (parser_expect(p, TOKEN_IDENTIFIER, &tIdentVal)) {
-        if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
-          printf("parsed function call\n");
-          // TODO(harrison): add function call node to tree
-
-          return true;
-        }
-      }
-    }*/
-
     Token t = *p->head;
 
     printf("%.*s %d\n", t.len, t.start, t.type);
+  } else if (parser_expect(p, TOKEN_LOG)) {
+    printf("HELL FUCKING LO????\n");
+    *node = ast_makeLog();
+    return true;
   }
 
   printf("failed parse statemetn\n");

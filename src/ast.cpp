@@ -90,6 +90,7 @@ enum ASTNodeType : uint32 {
 
   AST_NODE_ASSIGNMENT,
   AST_NODE_ASSIGNMENT_DECLARATION,
+  AST_NODE_FUNCTION_CALL,
 
   AST_NODE_ADD,
   AST_NODE_SUBTRACT,
@@ -105,7 +106,9 @@ enum ASTNodeType : uint32 {
 
   AST_NODE_IDENTIFIER,
   AST_NODE_VALUE,
-  AST_NODE_NUMBER
+  AST_NODE_NUMBER,
+
+  AST_NODE_LOG
 };
 
 struct ASTNode;
@@ -144,6 +147,12 @@ struct ASTNode_Function {
   ASTNode* block;
 };
 
+struct ASTNode_FunctionCall {
+  Token identifier;
+};
+
+struct ASTNode_Log {};
+
 struct ASTNode {
   ASTNodeType type;
 
@@ -172,6 +181,9 @@ struct ASTNode {
     ASTNode_If cIf;
 
     ASTNode_Function functionDeclaration;
+    ASTNode_FunctionCall functionCall;
+
+    ASTNode_Log log;
   };
 };
 
@@ -328,6 +340,22 @@ ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block) {
   return node;
 }
 
+ASTNode ast_makeFunctionCall(Token t) {
+  ASTNode node = {};
+  node.line = t.line;
+  node.type = AST_NODE_FUNCTION_CALL;
+  node.functionCall.identifier = t;
+
+  return node;
+}
+
+ASTNode ast_makeLog() {
+  ASTNode node = {};
+  node.type = AST_NODE_LOG;
+
+  return node;
+}
+
 bool ast_checkType(ASTNode n, ValueType vt) {
   switch (n.type) {
     case AST_NODE_ADD:
@@ -471,6 +499,20 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_SET_GLOBAL, node->line);
       } break;
+    case AST_NODE_FUNCTION_CALL:
+      {
+        Token ident = node->functionCall.identifier;
+
+        Value nameVal = value_make(ident.start, ident.len);
+
+        int name = hunk_addConstant(hunk, nameVal);
+        hunk_write(hunk, OP_CONSTANT, node->line);
+        hunk_write(hunk, name, node->line);
+
+        hunk_write(hunk, OP_GET_GLOBAL, node->line);
+
+        hunk_write(hunk, OP_CALL, node->line);
+      } break;
     case AST_NODE_IF:
        {
         if (!ast_writeBytecode(node->cIf.condition, hunk, scope)) {
@@ -569,6 +611,10 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_DIVIDE, node->line);
       } break;
 #undef BINARY_POP
+    case AST_NODE_LOG:
+      {
+        hunk_write(hunk, OP_LOG, node->line);
+      } break;
     default:
       {
         printf("ERROR: Don't know how to get bytecode from node type %d\n", node->type);
