@@ -511,7 +511,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk_write(hunk, OP_GET_GLOBAL, node->line);
 
-        hunk_write(hunk, OP_CALL, node->line);
+        // hunk_write(hunk, OP_CALL, node->line);
       } break;
     case AST_NODE_IF:
        {

@@ -164,12 +164,13 @@ enum ProgramResult : uint32 {
 
 #define VM_STACK_MAX (256)
 #define VM_FRAME_MAX (32)
+#define VM_LOCALS_MAX (32)
 
 struct Frame {
   Hunk* hunk;
   Instruction* ip;
 
-  int stackFrom;
+  psize stackFrom;
 
   Value slots[VM_LOCALS_MAX];
 };
@@ -181,15 +182,32 @@ struct VM {
   Value* stackTop;
 
   Frame frames[VM_FRAME_MAX];
-  int currentFrame;
+  int frameCount;
 };
+
+bool vm_add_frame(VM* vm, Hunk* hunk) {
+  if (vm->frameCount >= VM_FRAME_MAX - 1) {
+    return false;
+  }
+
+  Frame f = {};
+  f.hunk = hunk;
+  f.ip = f.hunk->code;
+  f.stackFrom = vm->stackTop - vm->stack;
+
+  vm->frames[vm->frameCount] = f;
+
+  vm->frameCount += 1;
+
+  return true;
+}
 
 void vm_load(VM* vm, Hunk* hunk) {
   table_init(&vm->globals);
-
-  vm->hunk = hunk;
-  vm->ip = hunk->code;
   vm->stackTop = vm->stack;
+  vm->frameCount = 0;
+
+  assert(vm_add_frame(vm, hunk));
 }
 
 void vm_stack_push(VM* vm, Value val) {
@@ -205,19 +223,20 @@ Value vm_stack_pop(VM* vm) {
 }
 
 ProgramResult vm_run(VM* vm) {
-#define READ() (*vm->ip++)
+#define READ() (*frame->ip++)
   while (true) {
+    Frame* frame = &vm->frames[vm->frameCount -1];
     for (int i = 0; i < VM_LOCALS_MAX; i++) {
-      if (vm->slots[i].type == VALUE_NIL) {
+      if (frame->slots[i].type == VALUE_NIL) {
         continue;
       }
 
       printf("slot %d: ", i);
-      value_println(vm->slots[i]);
+      value_println(frame->slots[i]);
     }
 
-    int offset = (int) (vm->ip - vm->hunk->code);
-    hunk_disassembleInstruction(vm->hunk, offset);
+    int offset = (int) (frame->ip - frame->hunk->code);
+    hunk_disassembleInstruction(frame->hunk, offset);
 
     Instruction in = READ();
 
@@ -231,7 +250,7 @@ ProgramResult vm_run(VM* vm) {
       case OP_CONSTANT:
         {
           Instruction id = READ();
-          Value val = vm->hunk->constants[id];
+          Value val = frame->hunk->constants[id];
 
           vm_stack_push(vm, val);
         } break;
@@ -239,12 +258,12 @@ ProgramResult vm_run(VM* vm) {
         {
           Instruction id = READ();
 
-          vm->slots[id] = vm_stack_pop(vm);
+          frame->slots[id] = vm_stack_pop(vm);
         } break;
       case OP_GET_LOCAL:
         {
           Instruction id = READ();
-          Value val = vm->slots[id];
+          Value val = frame->slots[id];
 
           vm_stack_push(vm, val);
         } break;
@@ -275,11 +294,12 @@ ProgramResult vm_run(VM* vm) {
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
-          vm_stack_push(func);
+          vm_stack_push(vm, func);
 
           printf("&&&&&&&&&&&&&&&&&&&&& value: ");
           value_println(func);
         } break;
+        /*
       case OP_CALL:
         {
           // pop function
@@ -289,14 +309,14 @@ ProgramResult vm_run(VM* vm) {
           //  - execute code
           //  - break out
           //  - pop all stack additions, push return value
-        } break;
+        } break;*/
       case OP_JUMP_IF_FALSE:
         {
           Value v = vm_stack_pop(vm);
           Instruction jumpOffset = READ();
 
           if (v.type == VALUE_BOOL && v.as.boolean == false) {
-            vm->ip += jumpOffset;
+            frame->ip += jumpOffset;
           }
         } break;
       case OP_NEGATE:
