@@ -22,6 +22,8 @@ enum OPCode : Instruction {
   OP_SET_GLOBAL,
   OP_GET_GLOBAL,
 
+  OP_CALL,
+
   // Load constant onto stack
   OP_CONSTANT,
 
@@ -100,6 +102,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
       } break;
 
   switch (in) {
+    SIMPLE_INSTRUCTION(OP_CALL);
     SIMPLE_INSTRUCTION(OP_SET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_GET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_LOG);
@@ -170,7 +173,7 @@ struct Frame {
   Hunk* hunk;
   Instruction* ip;
 
-  psize stackFrom;
+  Value* originalStackPosition;
 
   Value slots[VM_LOCALS_MAX];
 };
@@ -193,7 +196,7 @@ bool vm_add_frame(VM* vm, Hunk* hunk) {
   Frame f = {};
   f.hunk = hunk;
   f.ip = f.hunk->code;
-  f.stackFrom = vm->stackTop - vm->stack;
+  f.originalStackPosition = vm->stackTop;
 
   vm->frames[vm->frameCount] = f;
 
@@ -224,7 +227,7 @@ Value vm_stack_pop(VM* vm) {
 
 ProgramResult vm_run(VM* vm) {
 #define READ() (*frame->ip++)
-  while (true) {
+  while (vm->frameCount > 0) {
     Frame* frame = &vm->frames[vm->frameCount -1];
     for (int i = 0; i < VM_LOCALS_MAX; i++) {
       if (frame->slots[i].type == VALUE_NIL) {
@@ -243,9 +246,9 @@ ProgramResult vm_run(VM* vm) {
     switch (in) {
       case OP_RETURN:
         {
-          value_println(vm_stack_pop(vm));
+          vm->stackTop = frame->originalStackPosition;
 
-          return PROGRAM_RESULT_OK;
+          vm->frameCount -= 1;
         } break;
       case OP_CONSTANT:
         {
@@ -299,17 +302,16 @@ ProgramResult vm_run(VM* vm) {
           printf("&&&&&&&&&&&&&&&&&&&&& value: ");
           value_println(func);
         } break;
-        /*
       case OP_CALL:
         {
-          // pop function
-          // create new call frame
-          //  - set new ip
-          //  - new slots
-          //  - execute code
-          //  - break out
-          //  - pop all stack additions, push return value
-        } break;*/
+          Value func = vm_stack_pop(vm);
+
+          if (func.type != VALUE_FUNCTION) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          assert(vm_add_frame(vm, func.as.function.hunk));
+        } break;
       case OP_JUMP_IF_FALSE:
         {
           Value v = vm_stack_pop(vm);

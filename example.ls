@@ -5,6 +5,13 @@ func main {
     log
 }
 
+func fuck {
+    g := 42
+
+    g
+    log
+}
+
 x := 2 // declare symbol
 y := 100
 
@@ -14,4 +21,7 @@ if x > 0 {
 
 main()
 
+fuck()
+
 y
+log
