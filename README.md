@@ -8,7 +8,18 @@ I'm writing it to learn how these sort of things work.
 
 ## Goals
 
-- Get functions to work
+- Functions
+  - [x] Store/retrieve globals
+    - [x] Create Value table
+  - [x] Call frames
+  - [x] Execute parameterless, return value-less functions (ie. procedures)
+  - [ ] Parameters
+  - [ ] Return values
+- Make some new control flow statements
+  - [ ] For loop
+  - [ ] While loop
+  - [ ] Else/else-if statements
+- Proper type system
 - Get structs to work
 - Operator overloading
 - Compile to WebAssembly
