@@ -47,6 +47,10 @@ bool table_full(Table* t) {
 
 // NOTE(harrison): INTERNAL USE ONLY.
 bool table_addEntry(Table* t, TableEntry entry) {
+  if (t->capacity <= 0) {
+    return false;
+  }
+
   int index = entry.hash % t->capacity;
 
   for (int offset = 0; offset < t->capacity; offset += 1) {
@@ -103,6 +107,10 @@ void table_set(Table* t, String str, Value val) {
 }
 
 bool table_get(Table* t, String key, Value* v) {
+  if (t->capacity <= 0) {
+    return false;
+  }
+
   // TODO(harrison): Is this too slow? Benchmark
   int64 hash = table_hash(key);
 

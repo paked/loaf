@@ -1,27 +1,11 @@
-func main {
-    z := 10
+x := 332
 
-    z
+if x > 2 {
+    y := 24
+
+    y
     log
 }
 
-func fuck {
-    g := 42
-
-    g
-    log
-}
-
-x := 2 // declare symbol
-y := 100
-
-if x > 0 {
-    y = 1994
-}
-
-main()
-
-fuck()
-
-y
+x
 log

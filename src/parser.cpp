@@ -224,10 +224,6 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
   return true;
 }
 
-bool parser_parseBooleanExpression(Parser* p, ASTNode* node) {
-  return false;
-}
-
 bool parser_parseBrackets(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
     if (parser_parseNumericalExpression(p, node, TOKEN_BRACKET_CLOSE)) {
@@ -260,7 +256,6 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
       return true;
     }
   }
-
 
   return false;
 }
@@ -305,9 +300,21 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
 
     printf("%.*s %d\n", t.len, t.start, t.type);
   } else if (parser_expect(p, TOKEN_LOG)) {
-    printf("HELL FUCKING LO????\n");
     *node = ast_makeLog();
+
     return true;
+  } else if (parser_expect(p, TOKEN_VAR)) {
+    if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
+      Token type;
+
+      if (parser_expect(p, TOKEN_IDENTIFIER, &type)) {
+        /*
+        *node = ast_makeDeclaration(tIdent, type);
+        */
+
+        return true;
+      }
+    }
   }
 
   printf("failed parse statemetn\n");

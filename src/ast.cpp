@@ -3,20 +3,39 @@ struct Variable {
   char* start;
   int len;
 
-  int index;
+  int slot;
 };
 
 array_for(Variable);
 
-#define SCOPE_MAX (256)
+#define SCOPE_MAX_VARIABLES (256)
+#define SCOPE_MAX_TYPES (256)
 // TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
 struct Scope {
   int count;
-  Variable variables[SCOPE_MAX];
+  Variable variables[SCOPE_MAX_VARIABLES];
+
+  Scope* parent;
 };
 
 void scope_init(Scope* s) {
   s->count = 0;
+  s->parent = 0;
+}
+
+void scope_init(Scope* s, Scope *p) {
+  scope_init(s);
+
+  s->parent = p;
+}
+
+int scope_getParentCount(Scope *s) {
+  int n = s->count;
+  if (s->parent != 0) {
+    n += scope_getParentCount(s->parent);
+  }
+
+  return n;
 }
 
 bool scope_exists(Scope* s, char* name, int len) {
@@ -30,6 +49,10 @@ bool scope_exists(Scope* s, char* name, int len) {
     if (memcmp(name, v.start, len) == 0) {
       return true;
     }
+  }
+
+  if (s->parent != 0) {
+    return scope_exists(s->parent, name, len);
   }
 
   return false;
@@ -50,34 +73,27 @@ bool scope_get(Scope* s, char* name, int len, Variable* var) {
     }
   }
 
+  if (s->parent != 0) {
+    return scope_get(s->parent, name, len, var);
+  }
+
   return false;
 }
 
 int scope_set(Scope* s, Variable var) {
-  // If the variable exists, update it
-  for (int i = 0; i < s->count; i++) {
-    Variable v = s->variables[i];
-
-    if (v.len != var.len) {
-      continue;
-    }
-
-    if (memcmp(var.start, v.start, var.len) == 0) {
-      s->variables[i] = var;
-
-      return i;
-    }
+  if (scope_exists(s, var.start, var.len)) {
+    return -1;
   }
 
   assert(s->count < 255);
 
-  var.index = s->count;
+  var.slot = scope_getParentCount(s);
 
   // If it doesn't, add a new one
-  s->variables[var.index] = var;
+  s->variables[s->count] = var;
   s->count += 1;
 
-  return var.index;
+  return var.slot;
 }
 
 #define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
@@ -266,7 +282,6 @@ ASTNode ast_makeOperatorWith(ASTNodeType op, ASTNode left, ASTNode right, Token 
   return node;
 }
 
-
 ASTNode ast_makeNumber(int n, Token t) {
   ASTNode node = {};
   node.line = t.line;
@@ -440,7 +455,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         }
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
-        hunk_write(hunk, var.index, node->line);
+        hunk_write(hunk, var.slot, node->line);
       } break;
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
@@ -465,12 +480,14 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        var.index = scope_set(scope, var);
+        int i = scope_set(scope, var);
+        assert(i >= 0);
+        var.slot = i;
 
-        printf("INDEX: %d\n", var.index);
+        printf("INDEX: %d\n", var.slot);
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
-        hunk_write(hunk, var.index, node->line);
+        hunk_write(hunk, var.slot, node->line);
       } break;
     case AST_NODE_FUNCTION_DECLARATION:
       {
@@ -519,12 +536,15 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           return false;
         }
 
+        Scope inner = {};
+        scope_init(&inner, scope);
+
         hunk_write(hunk, OP_JUMP_IF_FALSE, 0);
         hunk_write(hunk, 0, 0);
 
         Instruction offsetPos = hunk_getCount(hunk) - 1;
 
-        if (!ast_writeBytecode(node->cIf.block, hunk, scope)) {
+        if (!ast_writeBytecode(node->cIf.block, hunk, &inner)) {
           return false;
         }
 
@@ -532,17 +552,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         hunk->code[offsetPos] = ifEndPos - offsetPos;
        } break;
-#define BINARY_POP() \
-       do { \
-         ASTNode* left = node->binary.left; \
-         ASTNode* right = node->binary.right; \
-         if (!ast_writeBytecode(left, hunk, scope)) { \
-           return false; \
-         } \
-         if (!ast_writeBytecode(right, hunk, scope)) { \
-           return false; \
-         } \
-       } while (false);
     case AST_NODE_NUMBER:
       {
         int constant = hunk_addConstant(hunk, value_make((float) node->number.number));
@@ -566,8 +575,19 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         }
 
         hunk_write(hunk, OP_GET_LOCAL, node->line);
-        hunk_write(hunk, var.index, node->line);
+        hunk_write(hunk, var.slot, node->line);
       } break;
+#define BINARY_POP() \
+       do { \
+         ASTNode* left = node->binary.left; \
+         ASTNode* right = node->binary.right; \
+         if (!ast_writeBytecode(left, hunk, scope)) { \
+           return false; \
+         } \
+         if (!ast_writeBytecode(right, hunk, scope)) { \
+           return false; \
+         } \
+       } while (false);
     case AST_NODE_TEST_EQUAL:
       {
         BINARY_POP();
