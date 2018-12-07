@@ -6,6 +6,16 @@ It's inspired by Go, parts of Ruby, and a bit of C.
 
 I'm writing it to learn how these sort of things work.
 
+## Building/running
+
+```
+cd src
+
+./all.bash
+```
+
+Or alternatively run the `build.bash` and `run.bash` scripts as you need.
+
 ## Goals
 
 - Functions

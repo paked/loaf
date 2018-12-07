@@ -1,0 +1,2 @@
+./build.bash
+./run.bash

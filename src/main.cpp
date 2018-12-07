@@ -20,7 +20,8 @@
 #include <parser.cpp>
 
 int main(int argc, char** argv) {
-  FILE* f = fopen("example.ls", "rb");
+  // TODO(harrison): make sure there is a file here
+  FILE* f = fopen(argv[1], "rb");
   if (f == 0) {
     printf("ERROR: can't open file\n");
 
