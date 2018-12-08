@@ -1,4 +1,15 @@
+func potato {
+    why := 100
+
+    why
+    log
+}
+
+potato()
+
 x := 332
+
+x = 1
 
 if x > 2 {
     y := 24

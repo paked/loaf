@@ -392,6 +392,7 @@ ProgramResult vm_run(VM* vm) {
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
   if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) { \
+    printf("INVALID BINARY OPERATION: '%s'\n", #op);\
     return PROGRAM_RESULT_RUNTIME_ERROR; \
   } \
   Value c = {}; \

@@ -420,13 +420,29 @@ bool parser_parse(Parser* p, Hunk* hunk) {
 
   printf("finished building AST\n");
 
-  Scope scope = {};
-  scope_init(&scope);
+  {
+    Scope symbols = {};
+    Scope types = {};
 
-  if (!ast_writeBytecode(&p->root, hunk, &scope)) {
-    printf("Could not generate bytecode\n");
+    scope_init(&symbols);
+    scope_init(&types);
 
-    return false;
+    if (!ast_typeCheck(&p->root, &symbols, &types)) {
+      printf("Invalid type in code\n");
+
+      return false;
+    }
+  }
+
+  {
+    Scope scope = {};
+    scope_init(&scope);
+
+    if (!ast_writeBytecode(&p->root, hunk, &scope)) {
+      printf("Could not generate bytecode\n");
+
+      return false;
+    }
   }
 
   // Need to show some output

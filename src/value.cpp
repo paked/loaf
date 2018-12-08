@@ -22,6 +22,15 @@ struct String {
   int len;
 };
 
+void string_make(String* s, char* start, int len) {
+  s->len = len + 1;
+  // TODO(harrison): free
+  s->str = (char*) malloc(s->len * sizeof(char));
+
+  strncpy(s->str, start, len);
+  s->str[len] = '\0';
+}
+
 struct Value {
   ValueType type;
 
@@ -85,11 +94,7 @@ Value value_make(Hunk* hunk) {
 
 Value value_make(char* start, int len) {
   String s = {};
-  s.str = (char*) malloc((len + 1) * sizeof(char));
-  s.len = len + 1;
-
-  strncpy(s.str, start, len);
-  s.str[len] = '\0';
+  string_make(&s, start, len);
 
   Value v = {};
   v.type = VALUE_STRING;

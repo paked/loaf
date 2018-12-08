@@ -4,6 +4,8 @@ struct Variable {
   int len;
 
   int slot;
+
+  int type;
 };
 
 array_for(Variable);
@@ -58,6 +60,10 @@ bool scope_exists(Scope* s, char* name, int len) {
   return false;
 }
 
+bool scope_exists(Scope* s, Token ident) {
+  return scope_exists(s, ident.start, ident.len);
+}
+
 bool scope_get(Scope* s, char* name, int len, Variable* var) {
   for (int i = 0; i < s->count; i++) {
     Variable v = s->variables[i];
@@ -78,6 +84,10 @@ bool scope_get(Scope* s, char* name, int len, Variable* var) {
   }
 
   return false;
+}
+
+bool scope_get(Scope* s, Token ident, Variable* var) {
+  return scope_get(s, ident.start, ident.len, var);
 }
 
 int scope_set(Scope* s, Variable var) {
@@ -413,6 +423,241 @@ bool ast_nodeHasValue(ASTNode n) {
   return true;
 }
 #undef IS_USED
+
+#define TYPE_NUMBER (1)
+#define TYPE_BOOL (2)
+
+bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
+  switch (node->type) {
+    case AST_NODE_SUBTRACT:
+    case AST_NODE_MULTIPLY:
+    case AST_NODE_DIVIDE:
+    case AST_NODE_ADD:
+      {
+        int lt = -1;
+        if (!ast_getType(node->binary.left, symbols, types, &lt)) {
+          printf("Can't get type from left: %d\n", node->binary.left->type);
+          *type = -1;
+
+          return false;
+        }
+
+        int rt = -1;
+        if (!ast_getType(node->binary.right, symbols, types, &rt)) {
+          printf("Can't get type from right: %d\n", node->binary.right->type);
+          *type = -1;
+
+          return false;
+        }
+
+        if (lt != TYPE_NUMBER || rt != TYPE_NUMBER) {
+          printf("Left and right types not number%d %d\n", lt, rt);
+          *type = -1;
+
+          return false;
+        }
+
+        *type = lt;
+        return true;
+      } break;
+    case AST_NODE_TEST_GREATER:
+    case AST_NODE_TEST_LESSER:
+    case AST_NODE_TEST_EQUAL:
+      {
+        int lt = -1;
+        if (!ast_getType(node->binary.left, symbols, types, &lt)) {
+          printf("Can't get type from left: %d\n", node->binary.left->type);
+          *type = -1;
+
+          return false;
+        }
+
+        int rt = -1;
+        if (!ast_getType(node->binary.right, symbols, types, &rt)) {
+          printf("Can't get type from right: %d\n", node->binary.right->type);
+          *type = -1;
+
+          return false;
+        }
+
+        if (lt != TYPE_NUMBER || rt != TYPE_NUMBER) {
+          printf("Left and right types not number %d %d (test)\n", lt, rt);
+          *type = -1;
+
+          return false;
+        }
+
+        *type = TYPE_BOOL;
+        return true;
+      } break;
+    case AST_NODE_IDENTIFIER:
+      {
+        Variable var = {};
+        if (!scope_get(symbols, node->identifier.token, &var)) {
+          printf("couldn't get identifier\n");
+          *type = -1;
+
+          return false;
+        }
+
+        *type = var.type;
+
+        return true;
+      } break;
+    case AST_NODE_VALUE:
+      {
+        switch (node->value.val.type) {
+          case VALUE_NUMBER:
+            {
+              *type = TYPE_NUMBER;
+            } break;
+          case VALUE_BOOL:
+            {
+              *type = TYPE_BOOL;
+            } break;
+          default:
+            {
+              *type = -1;
+              return false;
+            }
+        }
+
+        return true;
+      } break;
+    case AST_NODE_NUMBER:
+      {
+        *type = TYPE_NUMBER;
+        return true;
+      } break;
+    default:
+      {
+        printf("Can't get type from NODE: %d\n", node->type);
+      } break;
+  }
+
+  return false;
+}
+
+bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
+  switch (node->type) {
+    case AST_NODE_ROOT:
+      {
+        for (psize i = 0; i < array_count(node->root.children); i++) {
+          ASTNode* child = node->root.children[i];
+
+          if (!ast_typeCheck(child, symbols, types)) {
+            printf("Can't typecheck something in: %d\n", child->type);
+
+            return false;
+          }
+        }
+
+        return true;
+      } break;
+    case AST_NODE_ASSIGNMENT_DECLARATION:
+      {
+        ASTNode* left = node->assignmentDeclaration.left;
+        ASTNode* right = node->assignmentDeclaration.right;
+
+        assert(left->type == AST_NODE_IDENTIFIER);
+
+        Variable var = {};
+        var.start = left->identifier.token.start;
+        var.len = left->identifier.token.len;
+
+        if (!ast_getType(right, symbols, types, &var.type)) {
+            printf("Can't get type from: %d\n", right->type);
+            return false;
+        }
+
+        scope_set(symbols, var);
+
+        return true;
+      } break;
+    case AST_NODE_ASSIGNMENT:
+      {
+        ASTNode* left = node->assignmentDeclaration.left;
+        ASTNode* right = node->assignmentDeclaration.right;
+
+        assert(left->type == AST_NODE_IDENTIFIER);
+
+        int identType = -1;
+        if (!ast_getType(left, symbols, types, &identType)) {
+          return false;
+        }
+
+        int rhsType = -1;
+        if (!ast_getType(right, symbols, types, &rhsType)) {
+          return false;
+        }
+
+        if (identType != rhsType) {
+          printf("Can't set variable to that value, type mismatch\n");
+
+          return false;
+        }
+
+        return true;
+      } break;
+    case AST_NODE_IF:
+      {
+        ASTNode* condition = node->cIf.condition;
+        ASTNode* block = node->cIf.block;
+
+        int conditionType = -1;
+        if (!ast_getType(condition, symbols, types, &conditionType)) {
+          return false;
+        }
+
+        if (conditionType != TYPE_BOOL) {
+          printf("Expected boolean condition\n");
+
+          return false;
+        }
+
+        Scope innerSymbols = {};
+        scope_init(&innerSymbols, symbols);
+        Scope innerTypes = {};
+        scope_init(&innerTypes, types);
+
+        if (!ast_typeCheck(block, &innerSymbols, &innerTypes)) {
+          return false;
+        }
+
+        return true;
+      } break;
+    case AST_NODE_FUNCTION_DECLARATION:
+      {
+        Scope symbols = {};
+        Scope types = {};
+
+        scope_init(&symbols);
+        scope_init(&types);
+
+        if (!ast_typeCheck(node->functionDeclaration.block, &symbols, &types)) {
+          return false;
+        }
+
+        return true;
+      } break;
+    case AST_NODE_FUNCTION_CALL:
+      // TODO(harrison): handle return values
+    case AST_NODE_LOG:
+    case AST_NODE_IDENTIFIER:
+      {
+        printf("Doing nothing for this node\n");
+
+        // Do nothing...
+        return true;
+      } break;
+    default:
+      {
+        printf("UNKNOWN NODE: %d\n", node->type);
+      } break;
+  }
+
+  return false;
+}
 
 // TODO(harrison): properly propogate errors
 bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
