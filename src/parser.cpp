@@ -421,10 +421,9 @@ bool parser_parse(Parser* p, Hunk* hunk) {
   printf("finished building AST\n");
 
   {
-    Scope symbols = {};
-    Scope types = {};
+    Scope symbols = scope_makeRootTypeScope();
 
-    scope_init(&symbols);
+    Scope types = {};
     scope_init(&types);
 
     if (!ast_typeCheck(&p->root, &symbols, &types)) {

@@ -8,10 +8,7 @@ struct Variable {
   int type;
 };
 
-array_for(Variable);
-
 #define SCOPE_MAX_VARIABLES (256)
-#define SCOPE_MAX_TYPES (256)
 // TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
 struct Scope {
   int count;
@@ -31,10 +28,10 @@ void scope_init(Scope* s, Scope *p) {
   s->parent = p;
 }
 
-int scope_getParentCount(Scope *s) {
+int scope_getNextSlot(Scope *s) {
   int n = s->count;
   if (s->parent != 0) {
-    n += scope_getParentCount(s->parent);
+    n += scope_getNextSlot(s->parent);
   }
 
   return n;
@@ -51,10 +48,6 @@ bool scope_exists(Scope* s, char* name, int len) {
     if (memcmp(name, v.start, len) == 0) {
       return true;
     }
-  }
-
-  if (s->parent != 0) {
-    return scope_exists(s->parent, name, len);
   }
 
   return false;
@@ -90,20 +83,44 @@ bool scope_get(Scope* s, Token ident, Variable* var) {
   return scope_get(s, ident.start, ident.len, var);
 }
 
-int scope_set(Scope* s, Variable var) {
-  if (scope_exists(s, var.start, var.len)) {
+int scope_set(Scope* s, Variable* var) {
+  if (scope_exists(s, var->start, var->len)) {
     return -1;
   }
 
   assert(s->count < 255);
 
-  var.slot = scope_getParentCount(s);
+  var->slot = scope_getNextSlot(s);
 
   // If it doesn't, add a new one
-  s->variables[s->count] = var;
+  s->variables[s->count] = *var;
   s->count += 1;
 
-  return var.slot;
+  return var->slot;
+}
+
+Scope scope_makeRootTypeScope() {
+  Scope s = {};
+  scope_init(&s);
+
+  String numberStr;
+  string_make(&numberStr, (char*) "number", 6);
+
+  String boolStr;
+  string_make(&boolStr, (char*) "bool", 4);
+
+  Variable numberType;
+  numberType.start = numberStr.str;
+  numberType.len = numberStr.len;
+
+  Variable boolType;
+  boolType.start = boolStr.str;
+  boolType.len = boolStr.len;
+
+  scope_set(&s, &numberType);
+  scope_set(&s, &boolType);
+
+  return s;
 }
 
 #define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
@@ -570,7 +587,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
             return false;
         }
 
-        scope_set(symbols, var);
+        scope_set(symbols, &var);
 
         return true;
       } break;
@@ -725,9 +742,8 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        int i = scope_set(scope, var);
+        int i = scope_set(scope, &var);
         assert(i >= 0);
-        var.slot = i;
 
         printf("INDEX: %d\n", var.slot);
 
