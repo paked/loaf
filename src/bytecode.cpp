@@ -83,21 +83,21 @@ int hunk_addConstant(Hunk* hunk, Value val) {
 }
 
 int hunk_disassembleInstruction(Hunk* hunk, int offset) {
-  printf("%04d | %04d | ", hunk->lines[offset], offset);
+  logf("%04d | %04d | ", hunk->lines[offset], offset);
 
   Instruction in = hunk->code[offset];
 
 #define SIMPLE_INSTRUCTION(Code) \
   case Code: \
     { \
-      printf("%s\n", #Code); \
+      logf("%s\n", #Code); \
       return offset + 1; \
     } break;
 
 #define SIMPLE_INSTRUCTION2(Code) \
   case Code: \
       { \
-        printf("%s %d\n", #Code, hunk->code[offset + 1]); \
+        logf("%s %d\n", #Code, hunk->code[offset + 1]); \
         return offset + 2; \
       } break;
 
@@ -124,22 +124,22 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     case OP_CONSTANT:
       {
         int idx = hunk->code[offset + 1];
-        printf("%s %d ", "OP_CONSTANT", idx);
+        logf("%s %d ", "OP_CONSTANT", idx);
 
-        value_println(hunk->constants[idx]);
+        value_logln(hunk->constants[idx]);
 
         return offset + 2;
       } break;
     case OP_GET_LOCAL:
       {
         int idx = hunk->code[offset + 1];
-        printf("%s %d\n", "OP_GET_LOCAL", idx);
+        logf("%s %d\n", "OP_GET_LOCAL", idx);
 
         return offset + 2;
       } break;
     default:
       {
-        printf("Unknown opcode: %d\n", in);
+        logf("Unknown opcode: %d\n", in);
       };
   }
 
@@ -150,7 +150,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 }
 
 void hunk_disassemble(Hunk* hunk, const char* name) {
-  printf("=== %s ===\n", name);
+  logf("=== %s ===\n", name);
 
   int i = 0;
 
@@ -234,8 +234,8 @@ ProgramResult vm_run(VM* vm) {
         continue;
       }
 
-      printf("slot %d: ", i);
-      value_println(frame->slots[i]);
+      logf("slot %d: ", i);
+      value_logln(frame->slots[i]);
     }
 
     int offset = (int) (frame->ip - frame->hunk->code);
@@ -292,15 +292,14 @@ ProgramResult vm_run(VM* vm) {
           Value func;
 
           if (!table_get(&vm->globals, name.as.string, &func)) {
-            printf("ERROR: unknown function\n");
+            logf("ERROR: unknown function\n");
 
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
           vm_stack_push(vm, func);
 
-          printf("&&&&&&&&&&&&&&&&&&&&& value: ");
-          value_println(func);
+          value_logln(func);
         } break;
       case OP_CALL:
         {
@@ -326,7 +325,7 @@ ProgramResult vm_run(VM* vm) {
           Value v = vm_stack_pop(vm);
 
           if (!VALUE_IS_NUMBER(v)) {
-            printf("RUNTIME ERROR: Value is not a number.");
+            logf("RUNTIME ERROR: Value is not a number.");
 
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
@@ -339,7 +338,6 @@ ProgramResult vm_run(VM* vm) {
         {
           Value v = vm_stack_pop(vm);
 
-          printf("###############LOGGING: ");
           value_println(v);
 
           vm_stack_push(vm, v);
@@ -392,7 +390,7 @@ ProgramResult vm_run(VM* vm) {
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
   if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) { \
-    printf("INVALID BINARY OPERATION: '%s'\n", #op);\
+    logf("INVALID BINARY OPERATION: '%s'\n", #op);\
     return PROGRAM_RESULT_RUNTIME_ERROR; \
   } \
   Value c = {}; \

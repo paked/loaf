@@ -33,16 +33,12 @@ void parser_advance(Parser* p) {
 
 bool parser_allow(Parser* p, TokenType type, Token* tok = 0) {
   if (p->head->type != type) {
-    printf("did not match %.*s (head:%d vs want:%d)\n", p->head->len, p->head->start, p->head->type, type);
-
     return false;
   }
 
   if (tok != 0) {
     *tok = *p->head;
   }
-
-  printf("matched %.*s %d\n", p->head->len, p->head->start, p->head->type);
 
   return true;
 }
@@ -132,7 +128,7 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
     } else if (parser_allow(p, endOn) || parser_allow(p, TOKEN_CURLY_OPEN)) {
       break;
     } else {
-      printf("token: %.*s. %d\n", t.len, t.start, t.type);
+      logf("token: %.*s. %d\n", t.len, t.start, t.type);
 
       assert(!"Unknown token type");
     }
@@ -159,7 +155,6 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
 
     while (i < array_count(expression) && array_count(expression) != 1) {
       if (i + 2 >= array_count(expression)) {
-        printf("can't find anymore of current operation type, searching next\n");
         break;
       }
 
@@ -179,8 +174,6 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
 
         i += 2;
 
-        printf("found wrong operation type, adding to working and moving on\n");
-
         continue;
       }
 
@@ -193,7 +186,6 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
       Token t = {};
       t.line = op.line;
 
-      printf("We have a valid binary operator\n");
       ASTNode compressed = ast_makeOperatorWith(op.type, left, right, t);
       array_ASTNode_add(&working, compressed);
 
@@ -204,14 +196,10 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
         array_ASTNode_add(&working, n);
 
         j += 1;
-
-        printf("copying %zu\n", array_count(expression) - 3);
       }
 
       array_ASTNode_copy(&working, &expression);
       array_ASTNode_zero(&working);
-
-      printf("done\n");
     }
 
     array_ASTNode_zero(&working);
@@ -237,8 +225,6 @@ bool parser_parseBrackets(Parser* p, ASTNode* node) {
 }
 
 bool parser_parseExpression(Parser* p, ASTNode* node) {
-  printf("parsing expression\n");
-
   Token t;
 
   if (parser_expect(p, TOKEN_TRUE, &t)) {
@@ -263,8 +249,6 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
 bool parser_parseBlock(Parser* p, ASTNode* node);
 
 bool parser_parseStatement(Parser* p, ASTNode* node) {
-  printf("beginning parse statemetn\n");
-
   Token tIdent;
   if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
     ASTNode ident = ast_makeIdentifier(tIdent);
@@ -273,32 +257,22 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
     if (parser_expect(p, TOKEN_ASSIGNMENT_DECLARATION, &tAss)) {
       ASTNode val = {};
 
-      printf("getting expression\n");
       if (parser_parseExpression(p, &val)) {
-        printf("doing the thing: %d\n", val.type);
-        printf("parsed assdecl\n");
-
         *node = ast_makeAssignmentDeclaration(ident, val, tAss);
+
         return true;
       }
     } else if (parser_expect(p, TOKEN_ASSIGNMENT, &tAss)) {
       ASTNode val = {};
-      printf("getting expression\n");
 
       if (parser_parseExpression(p, &val)) {
-        printf("doing the thing: %d\n", val.type);
-        printf("parsed ass\n");
-
         *node = ast_makeAssignment(ident, val, tAss);
+
         return true;
       }
     } else if (parser_parseIdentifier(p, node, tIdent)) {
       return true;
     }
-
-    Token t = *p->head;
-
-    printf("%.*s %d\n", t.len, t.start, t.type);
   } else if (parser_expect(p, TOKEN_LOG)) {
     *node = ast_makeLog();
 
@@ -315,7 +289,6 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
     }
   }
 
-  printf("failed parse statemetn\n");
   return false;
 }
 
@@ -388,10 +361,7 @@ bool parser_parseScope(Parser* p, ASTNode* node) {
 }
 
 bool parser_parseBlock(Parser* p, ASTNode* node) {
-  printf("parsing block\n");
   if (parser_expect(p, TOKEN_CURLY_OPEN)) {
-    printf("found curly open\n");
-
     ASTNode block = {};
 
     if (parser_parseScope(p, &block)) {
@@ -402,8 +372,6 @@ bool parser_parseBlock(Parser* p, ASTNode* node) {
       }
     }
   }
-
-  printf("failed parsing block %d\n", p->head->type);
 
   return false;
 }
@@ -416,7 +384,7 @@ psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
 bool parser_parse(Parser* p, Hunk* hunk) {
   parser_parseScope(p, &p->root);
 
-  printf("finished building AST\n");
+  logf("finished building AST\n");
 
   {
     Scope types = scope_makeRootTypeScope();
@@ -425,7 +393,7 @@ bool parser_parse(Parser* p, Hunk* hunk) {
     scope_init(&symbols);
 
     if (!ast_typeCheck(&p->root, &symbols, &types)) {
-      printf("Invalid type in code\n");
+      logf("Invalid type in code\n");
 
       return false;
     }
@@ -436,7 +404,7 @@ bool parser_parse(Parser* p, Hunk* hunk) {
     scope_init(&scope);
 
     if (!ast_writeBytecode(&p->root, hunk, &scope)) {
-      printf("Could not generate bytecode\n");
+      logf("Could not generate bytecode\n");
 
       return false;
     }

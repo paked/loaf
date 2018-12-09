@@ -451,7 +451,7 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
       {
         int lt = -1;
         if (!ast_getType(node->binary.left, symbols, types, &lt)) {
-          printf("Can't get type from left: %d\n", node->binary.left->type);
+          logf("Can't get type from left: %d\n", node->binary.left->type);
           *type = -1;
 
           return false;
@@ -459,14 +459,14 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
 
         int rt = -1;
         if (!ast_getType(node->binary.right, symbols, types, &rt)) {
-          printf("Can't get type from right: %d\n", node->binary.right->type);
+          logf("Can't get type from right: %d\n", node->binary.right->type);
           *type = -1;
 
           return false;
         }
 
         if (lt != TYPE_NUMBER || rt != TYPE_NUMBER) {
-          printf("Left and right types not number%d %d\n", lt, rt);
+          logf("Left and right types not number%d %d\n", lt, rt);
           *type = -1;
 
           return false;
@@ -481,7 +481,7 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
       {
         int lt = -1;
         if (!ast_getType(node->binary.left, symbols, types, &lt)) {
-          printf("Can't get type from left: %d\n", node->binary.left->type);
+          logf("Can't get type from left: %d\n", node->binary.left->type);
           *type = -1;
 
           return false;
@@ -489,14 +489,14 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
 
         int rt = -1;
         if (!ast_getType(node->binary.right, symbols, types, &rt)) {
-          printf("Can't get type from right: %d\n", node->binary.right->type);
+          logf("Can't get type from right: %d\n", node->binary.right->type);
           *type = -1;
 
           return false;
         }
 
         if (lt != TYPE_NUMBER || rt != TYPE_NUMBER) {
-          printf("Left and right types not number %d %d (test)\n", lt, rt);
+          logf("Left and right types not number %d %d (test)\n", lt, rt);
           *type = -1;
 
           return false;
@@ -509,7 +509,7 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
       {
         Variable var = {};
         if (!scope_get(symbols, node->identifier.token, &var)) {
-          printf("couldn't get identifier\n");
+          logf("couldn't get identifier\n");
           *type = -1;
 
           return false;
@@ -546,7 +546,7 @@ bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
       } break;
     default:
       {
-        printf("Can't get type from NODE: %d\n", node->type);
+        logf("Can't get type from NODE: %d\n", node->type);
       } break;
   }
 
@@ -561,7 +561,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
           ASTNode* child = node->root.children[i];
 
           if (!ast_typeCheck(child, symbols, types)) {
-            printf("Can't typecheck something in: %d\n", child->type);
+            logf("Can't typecheck something in: %d\n", child->type);
 
             return false;
           }
@@ -575,7 +575,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         Variable type = {};
 
         if (!scope_get(types, typeName.start, typeName.len, &type)) {
-          printf("Can't find type: %.*s\n", typeName.len, typeName.start);
+          logf("Can't find type: %.*s\n", typeName.len, typeName.start);
 
           return false;
         }
@@ -587,7 +587,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         identifier.len = identifierName.len;
 
         if (scope_set(symbols, &identifier) == -1) {
-          printf("variable already exists\n");
+          logf("variable already exists\n");
 
           return false;
         }
@@ -599,7 +599,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         } else if (type.slot == TYPE_BOOL) {
           vt = VALUE_BOOL;
         } else {
-          printf("invalid type %d can't be represented with a value\n", type.slot);
+          logf("invalid type %d can't be represented with a value\n", type.slot);
 
           return false;
         }
@@ -620,12 +620,12 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         var.len = left->identifier.token.len;
 
         if (!ast_getType(right, symbols, types, &var.type)) {
-            printf("Can't get type from: %d\n", right->type);
+            logf("Can't get type from: %d\n", right->type);
             return false;
         }
 
         if (scope_set(symbols, &var) == -1) {
-          printf("variable already exists\n");
+          logf("variable already exists\n");
 
           return false;
         }
@@ -650,7 +650,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         }
 
         if (identType != rhsType) {
-          printf("Can't set variable to that value, type mismatch\n");
+          logf("Can't set variable to that value, type mismatch\n");
 
           return false;
         }
@@ -668,7 +668,7 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
         }
 
         if (conditionType != TYPE_BOOL) {
-          printf("Expected boolean condition\n");
+          logf("Expected boolean condition\n");
 
           return false;
         }
@@ -703,14 +703,12 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
     case AST_NODE_LOG:
     case AST_NODE_IDENTIFIER:
       {
-        printf("Doing nothing for this node\n");
-
         // Do nothing...
         return true;
       } break;
     default:
       {
-        printf("UNKNOWN NODE: %d\n", node->type);
+        logf("UNKNOWN NODE: %d\n", node->type);
       } break;
   }
 
@@ -719,12 +717,11 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
 
 // TODO(harrison): properly propogate errors
 bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
-  printf("node->type %d\n", node->type);
-
   switch (node->type) {
     case AST_NODE_INVALID:
       {
-        printf("reached an invalid source path\n");
+        logf("reached an invalid source path\n");
+
         return false;
       } break;
     case AST_NODE_ROOT:
@@ -750,12 +747,10 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.len = node->declaration.identifier.len;
 
         if (scope_set(scope, &var) == -1) {
-          printf("can't create variable\n");
+          logf("can't create variable\n");
 
           return false;
         }
-
-        printf("INDEX: %d\n", var.slot);
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.slot, node->line);
@@ -775,7 +770,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         Variable var = {};
         if (!scope_get(scope, left->identifier.token.start, left->identifier.token.len, &var)) {
-          printf("ERROR: variable doesn't exist!\n");
+          logf("ERROR: variable doesn't exist!\n");
 
           return false;
         }
@@ -797,7 +792,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         }
 
         if (scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
-          printf("ERROR: variable already exists!\n");
+          logf("ERROR: variable already exists!\n");
 
           return false;
         }
@@ -806,10 +801,11 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         var.start = left->identifier.token.start;
         var.len = left->identifier.token.len;
 
-        int i = scope_set(scope, &var);
-        assert(i >= 0);
+        if (scope_set(scope, &var) == -1) {
+          logf("Variable already exists\n");
 
-        printf("INDEX: %d\n", var.slot);
+          return false;
+        }
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
         hunk_write(hunk, var.slot, node->line);
@@ -894,7 +890,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         Variable var = {};
 
         if (!scope_get(scope, node->identifier.token.start, node->identifier.token.len, &var)) {
-          printf("ERROR: variable doesn't exist!\n");
+          logf("ERROR: variable doesn't exist!\n");
 
           return false;
         }
@@ -962,7 +958,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
       } break;
     default:
       {
-        printf("ERROR: Don't know how to get bytecode from node type %d\n", node->type);
+        logf("ERROR: Don't know how to get bytecode from node type %d\n", node->type);
 
         return false;
       }

@@ -103,36 +103,42 @@ Value value_make(char* start, int len) {
   return v;
 }
 
-void value_print(Value v) {
+void value_printTo(PrintPtr f, Value v) {
   switch (v.type) {
     case VALUE_NUMBER:
       {
-        printf("%f", v.as.number);
+        f("%f", v.as.number);
       } break;
     case VALUE_BOOL:
       {
-        printf(v.as.boolean ? "true" : "false");
+        f(v.as.boolean ? "true" : "false");
       } break;
     case VALUE_STRING:
       {
-        printf("'%s'", v.as.string.str);
+        f("'%s'", v.as.string.str);
       } break;
     case VALUE_FUNCTION:
       {
-        printf("[function @ %p]", v.as.function.hunk);
+        f("[function @ %p]", v.as.function.hunk);
       } break;
     default:
       {
-        printf("unknown: %d", v.type);
+        f("unknown: %d", v.type);
       }
   };
 }
 
-void value_println(Value v) {
-  value_print(v);
+void value_printlnTo(PrintPtr f, Value v) {
+  value_printTo(f, v);
 
-  printf("\n");
+  f("\n");
 }
+
+#define value_print(v) value_printTo(printf, (v))
+#define value_println(v) value_printlnTo(printf, (v))
+
+#define value_log(v) value_printTo(logf, (v))
+#define value_logln(v) value_printlnTo(logf, (v))
 
 bool value_equals(Value left, Value right) {
   if (left.type != right.type) {

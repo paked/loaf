@@ -1,13 +1,16 @@
 #include <stdlib.h> // malloc, realloc
-#include <stdio.h> // printf
+#include <stdio.h> // logf
 #include <assert.h> // assert
 #include <string.h> // memcmp
+#include <stdarg.h>
 
 // TODO(harrison): add some of above dependencies into uslib
 
 #include <us.hpp>
 
 #define REALLOC(Type, ptr, count) ((Type*) realloc(ptr, count * sizeof(Type)))
+
+#include <debug.cpp>
 
 #include <array.cpp>
 #include <value.cpp>
@@ -23,7 +26,7 @@ int main(int argc, char** argv) {
   // TODO(harrison): make sure there is a file here
   FILE* f = fopen(argv[1], "rb");
   if (f == 0) {
-    printf("ERROR: can't open file\n");
+    logf("ERROR: can't open file\n");
 
     return -1;
   }
@@ -34,7 +37,7 @@ int main(int argc, char** argv) {
 
   char* buffer = (char*) malloc(fSize + 1);
   if (buffer == 0) {
-    printf("ERROR: not enough memory to read file\n");
+    logf("ERROR: not enough memory to read file\n");
 
     return -1;
   }
@@ -42,7 +45,7 @@ int main(int argc, char** argv) {
   psize bytesRead = fread(buffer, sizeof(char), fSize, f);
 
   if (bytesRead != fSize) {
-    printf("ERROR: could not read file into memory\n");
+    logf("ERROR: could not read file into memory\n");
 
     return -1;
   }
@@ -62,7 +65,7 @@ int main(int argc, char** argv) {
     t = scanner_getToken(&scanner);
 
     if (t.type == TOKEN_ILLEGAL) {
-      printf("ERROR lexing code\n");
+      logf("ERROR lexing code\n");
 
       break;
     } else if (t.type == TOKEN_COMMENT) {
@@ -71,10 +74,10 @@ int main(int argc, char** argv) {
 
     array_Token_add(&tokens, t);
 
-    printf("val: %.*s (%d)\n", t.len, t.start, t.type);
+    logf("val: %.*s (%d)\n", t.len, t.start, t.type);
 
     if (t.type == TOKEN_EOF) {
-      printf("Got through all tokens\n");
+      logf("Got through all tokens\n");
 
       break;
     }
@@ -97,11 +100,11 @@ int main(int argc, char** argv) {
   ProgramResult res = vm_run(&vm);
 
   if (res != PROGRAM_RESULT_OK) {
-    printf("Program failed executing...\n");
+    logf("Program failed executing...\n");
     return 1;
   }
 
-  printf("Program finished executing...\n");
+  logf("Program finished executing...\n");
 
   return 0;
 }
