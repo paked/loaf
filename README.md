@@ -1,10 +1,8 @@
 # Loaf
 
-Loaf is a programming language.
+Loaf is a toy programming language I am currently hacking on to learn some new things. It features a hand written lexer and parser that outputs to a custom bytecode, which is then ran on a stack based virtual machine. Eventually I want to make it output to WebAssembly.
 
-It's inspired by Go, parts of Ruby, and a bit of C.
-
-I'm writing it to learn how these sort of things work.
+The syntax is a bit of Go, a bit of Ruby and a bit of C.
 
 ## Building/running
 
@@ -18,21 +16,26 @@ Or alternatively run the `build.bash` and `run.bash` scripts as you need.
 
 ## Goals
 
+- Type system
+  - [x] Properly scope types
+  - [x] Do a basic static type check for builtin types (number and bool)
+  - [ ] Create some sort of type/operation compatibility table
+  - [ ] Custom type support
 - Functions
   - [x] Store/retrieve globals
     - [x] Create Value table
   - [x] Call frames
   - [x] Execute parameterless, return value-less functions (ie. procedures)
-  - [ ] Parameters
+  - [ ] Typed parameters
   - [ ] Return values
-- Make some new control flow statements
+- Make some new statements
+  - [x] var statement to declare variable by type with a default value
   - [ ] For loop
   - [ ] While loop
   - [ ] Else/else-if statements
-- Proper type system
-- Get structs to work
-- Operator overloading
-- Compile to WebAssembly
+- Structs
+- Another compilation target
+  - [ ] WebAssembly
 
 ## Spec
 
