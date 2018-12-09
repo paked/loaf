@@ -308,9 +308,7 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
       Token type;
 
       if (parser_expect(p, TOKEN_IDENTIFIER, &type)) {
-        /*
         *node = ast_makeDeclaration(tIdent, type);
-        */
 
         return true;
       }
@@ -421,10 +419,10 @@ bool parser_parse(Parser* p, Hunk* hunk) {
   printf("finished building AST\n");
 
   {
-    Scope symbols = scope_makeRootTypeScope();
+    Scope types = scope_makeRootTypeScope();
 
-    Scope types = {};
-    scope_init(&types);
+    Scope symbols = {};
+    scope_init(&symbols);
 
     if (!ast_typeCheck(&p->root, &symbols, &types)) {
       printf("Invalid type in code\n");

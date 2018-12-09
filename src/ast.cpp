@@ -111,11 +111,11 @@ Scope scope_makeRootTypeScope() {
 
   Variable numberType;
   numberType.start = numberStr.str;
-  numberType.len = numberStr.len;
+  numberType.len = numberStr.len - 1; // ignore null terminator
 
   Variable boolType;
   boolType.start = boolStr.str;
-  boolType.len = boolStr.len;
+  boolType.len = boolStr.len - 1; // ignore null terminator
 
   scope_set(&s, &numberType);
   scope_set(&s, &boolType);
@@ -151,7 +151,9 @@ enum ASTNodeType : uint32 {
   AST_NODE_VALUE,
   AST_NODE_NUMBER,
 
-  AST_NODE_LOG
+  AST_NODE_LOG,
+
+  AST_NODE_DECLARATION
 };
 
 struct ASTNode;
@@ -196,6 +198,13 @@ struct ASTNode_FunctionCall {
 
 struct ASTNode_Log {};
 
+struct ASTNode_Declaration {
+  Token identifier;
+  Token type;
+
+  Value value; // NOT set until type checking
+};
+
 struct ASTNode {
   ASTNodeType type;
 
@@ -227,6 +236,8 @@ struct ASTNode {
     ASTNode_FunctionCall functionCall;
 
     ASTNode_Log log;
+
+    ASTNode_Declaration declaration;
   };
 };
 
@@ -398,27 +409,14 @@ ASTNode ast_makeLog() {
   return node;
 }
 
-bool ast_checkType(ASTNode n, ValueType vt) {
-  switch (n.type) {
-    case AST_NODE_ADD:
-    case AST_NODE_SUBTRACT:
-    case AST_NODE_MULTIPLY:
-    case AST_NODE_DIVIDE:
-      {
-        return ast_checkType(*n.binary.left, vt) && ast_checkType(*n.binary.right, vt);
-      } break;
-    case AST_NODE_NUMBER:
-      {
-        return (vt == VALUE_NUMBER) ? true : false;
-      } break;
+ASTNode ast_makeDeclaration(Token ident, Token type) {
+  ASTNode node = {};
+  node.line = ident.line;
+  node.type = AST_NODE_DECLARATION;
+  node.declaration.identifier = ident;
+  node.declaration.type = type;
 
-    case AST_NODE_VALUE:
-      {
-        return (vt == n.value.val.type);
-      } break;
-    default:
-      return false;
-  }
+  return node;
 }
 
 #define IS_USED(op) ((op).add.left != 0 && (op).add.right != 0)
@@ -441,8 +439,8 @@ bool ast_nodeHasValue(ASTNode n) {
 }
 #undef IS_USED
 
-#define TYPE_NUMBER (1)
-#define TYPE_BOOL (2)
+#define TYPE_NUMBER (0)
+#define TYPE_BOOL (1)
 
 bool ast_getType(ASTNode* node, Scope* symbols, Scope* types, int* type) {
   switch (node->type) {
@@ -571,6 +569,45 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
 
         return true;
       } break;
+    case AST_NODE_DECLARATION:
+      {
+        Token typeName = node->declaration.type;
+        Variable type = {};
+
+        if (!scope_get(types, typeName.start, typeName.len, &type)) {
+          printf("Can't find type: %.*s\n", typeName.len, typeName.start);
+
+          return false;
+        }
+
+        Token identifierName = node->declaration.identifier;
+
+        Variable identifier = {};
+        identifier.start = identifierName.start;
+        identifier.len = identifierName.len;
+
+        if (scope_set(symbols, &identifier) == -1) {
+          printf("variable already exists\n");
+
+          return false;
+        }
+
+        ValueType vt = VALUE_NIL;
+
+        if (type.slot == TYPE_NUMBER) {
+          vt = VALUE_NUMBER;
+        } else if (type.slot == TYPE_BOOL) {
+          vt = VALUE_BOOL;
+        } else {
+          printf("invalid type %d can't be represented with a value\n", type.slot);
+
+          return false;
+        }
+
+        node->declaration.value = value_make(vt);
+
+        return true;
+      } break;
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
         ASTNode* left = node->assignmentDeclaration.left;
@@ -587,7 +624,11 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
             return false;
         }
 
-        scope_set(symbols, &var);
+        if (scope_set(symbols, &var) == -1) {
+          printf("variable already exists\n");
+
+          return false;
+        }
 
         return true;
       } break;
@@ -695,6 +736,29 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
             return false;
           }
         }
+      } break;
+    case AST_NODE_DECLARATION:
+      {
+        ASTNode temp = ast_makeValue(node->declaration.value, node->declaration.identifier);
+
+        if (!ast_writeBytecode(&temp, hunk, scope)) {
+          return false;
+        }
+
+        Variable var = {};
+        var.start = node->declaration.identifier.start;
+        var.len = node->declaration.identifier.len;
+
+        if (scope_set(scope, &var) == -1) {
+          printf("can't create variable\n");
+
+          return false;
+        }
+
+        printf("INDEX: %d\n", var.slot);
+
+        hunk_write(hunk, OP_SET_LOCAL, node->line);
+        hunk_write(hunk, var.slot, node->line);
       } break;
     case AST_NODE_ASSIGNMENT:
       {

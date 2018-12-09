@@ -1,3 +1,8 @@
+var temp number // temp = 0
+
+temp
+log
+
 func potato {
     why := 100
 
