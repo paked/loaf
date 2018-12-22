@@ -12,6 +12,8 @@
 // assignment = identifier ":=" expression
 // statement = assignment | function_call
 
+array_for(ASTNode);
+
 array_for(Token);
 struct Parser {
   array(Token) tokens;
@@ -53,6 +55,8 @@ bool parser_expect(Parser *p, TokenType type, Token* tok = 0) {
   return true;
 }
 
+bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SEMICOLON);
+
 // int x = 10 + y;
 //              ^
 // func();
@@ -63,20 +67,32 @@ bool parser_parseIdentifier(Parser* p, ASTNode* node, Token tIdent) {
   assert(tIdent.type == TOKEN_IDENTIFIER);
 
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+    array(ASTNode) args = array_ASTNode_init();
+
+    if (!parser_allow(p, TOKEN_BRACKET_CLOSE)) {
+      while (true) {
+        ASTNode n = {};
+
+        if (!parser_parseComplexExpression(p, &n, TOKEN_COMMA)) {
+          return false;
+        }
+
+        array_ASTNode_add(&args, n);
+
+        if (!parser_expect(p, TOKEN_COMMA)) {
+          break;
+        }
+      }
+    }
+
     if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
-      *node = ast_makeFunctionCall(tIdent);
+      *node = ast_makeFunctionCall(tIdent, args);
 
       return true;
     }
 
     return false;
   }
-
-  /*
-  if (parser_expect(TOKEN_BRACKET_OPEN)) {
-    *node = ast_makeFunctionCall(tIdent, parameters);
-    return true;
-  }*/
 
   *node = ast_makeIdentifier(tIdent);
 
@@ -85,8 +101,6 @@ bool parser_parseIdentifier(Parser* p, ASTNode* node, Token tIdent) {
 
 bool parser_parseBrackets(Parser* p, ASTNode* node);
 
-array_for(ASTNode);
-
 // Perform algorithm:
 // for: N * N + N * Bx + I
 //  - group multiplication and division together until there are no operations of that sort in the top level
@@ -94,7 +108,7 @@ array_for(ASTNode);
 //  - group addition and subtraction together
 //    - becomes: B(B(B(N * N) + B(N * Bx)) + I)
 // therefore everything has been reduced into a single binary expression
-bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn = TOKEN_SEMICOLON) {
+bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
   array(ASTNode) expression = array_ASTNode_init();
 
   while (true) {
@@ -125,7 +139,7 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
       if (!parser_parseBrackets(p, &n)) {
         return false;
       }
-    } else if (parser_allow(p, endOn) || parser_allow(p, TOKEN_CURLY_OPEN)) {
+    } else if (parser_allow(p, endOn) || parser_allow(p, TOKEN_CURLY_OPEN) || parser_allow(p, TOKEN_BRACKET_CLOSE)) {
       break;
     } else {
       logf("token: %.*s. %d\n", t.len, t.start, t.type);
@@ -214,7 +228,7 @@ bool parser_parseNumericalExpression(Parser* p, ASTNode* node, TokenType endOn =
 
 bool parser_parseBrackets(Parser* p, ASTNode* node) {
   if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
-    if (parser_parseNumericalExpression(p, node, TOKEN_BRACKET_CLOSE)) {
+    if (parser_parseComplexExpression(p, node, TOKEN_BRACKET_CLOSE)) {
       if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
         return true;
       }
@@ -235,7 +249,7 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
     *node = ast_makeValue(value_make(false), t);
 
     return true;
-  } else if (parser_parseNumericalExpression(p, node)) {
+  } else if (parser_parseComplexExpression(p, node)) {
     return true;
   } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
     if (parser_parseIdentifier(p, node, t)) {
@@ -316,12 +330,38 @@ bool parser_parseFunctionDeclaration(Parser* p, ASTNode* node) {
     Token ident;
 
     if (parser_expect(p, TOKEN_IDENTIFIER, &ident)) {
-      ASTNode source;
+      if (parser_expect(p, TOKEN_BRACKET_OPEN)) {
+        array(Parameter) parameters = array_Parameter_init();
 
-      if (parser_parseBlock(p, &source)) {
-        *node = ast_makeFunctionDeclaration(ident, source);
+        if (!parser_allow(p, TOKEN_BRACKET_CLOSE)) {
+          while (true) {
+            Parameter param = {};
 
-        return true;
+            if (!parser_expect(p, TOKEN_IDENTIFIER, &param.identifier)) {
+              return false;
+            }
+
+            if (!parser_expect(p, TOKEN_IDENTIFIER, &param.type)) {
+              return false;
+            }
+
+            array_Parameter_add(&parameters, param);
+
+            if (!parser_expect(p, TOKEN_COMMA)) {
+              break;
+            }
+          }
+        }
+
+        if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+          ASTNode source;
+
+          if (parser_parseBlock(p, &source)) {
+            *node = ast_makeFunctionDeclaration(ident, source, parameters);
+
+            return true;
+          }
+        }
       }
     }
   }

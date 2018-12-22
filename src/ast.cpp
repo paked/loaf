@@ -186,14 +186,25 @@ struct ASTNode_If {
   ASTNode* block;
 };
 
+struct Parameter {
+  Token identifier;
+  Token type;
+};
+
+array_for(Parameter);
+
 struct ASTNode_Function {
   Token identifier;
 
   ASTNode* block;
+
+  array(Parameter) parameters;
 };
 
 struct ASTNode_FunctionCall {
   Token identifier;
+
+  array(ASTNode) args;
 };
 
 struct ASTNode_Log {};
@@ -380,11 +391,13 @@ ASTNode ast_makeIf(ASTNode condition, ASTNode block) {
   return node;
 }
 
-ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block) {
+ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block, array(Parameter) params) {
   assert(block.type == AST_NODE_ROOT);
 
   ASTNode node = {};
   node.type = AST_NODE_FUNCTION_DECLARATION;
+
+  node.functionDeclaration.parameters = params;
 
   node.functionDeclaration.identifier = ident;
   node.functionDeclaration.block = (ASTNode*) malloc(sizeof(block));
@@ -393,11 +406,12 @@ ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block) {
   return node;
 }
 
-ASTNode ast_makeFunctionCall(Token t) {
+ASTNode ast_makeFunctionCall(Token t, array(ASTNode) args) {
   ASTNode node = {};
   node.line = t.line;
   node.type = AST_NODE_FUNCTION_CALL;
   node.functionCall.identifier = t;
+  node.functionCall.args = args;
 
   return node;
 }

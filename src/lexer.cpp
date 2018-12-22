@@ -3,6 +3,7 @@ enum TokenType : uint32 {
   TOKEN_EOF,
 
   TOKEN_SEMICOLON,
+  TOKEN_COMMA,
 
   TOKEN_COMMENT,
 
@@ -180,6 +181,10 @@ Token scanner_readMultilineComment(Scanner* scn) {
       depth -= 1;
     }
 
+    if (scanner_peek(scn) == '\n') {
+      scn->line += 1;
+    }
+
     t.len += 1;
     scn->head += 1;
 
@@ -303,6 +308,7 @@ Token scanner_getToken(Scanner* scn) {
             SIMPLE_TOKEN(TOKEN_DIVIDE);
           }
         } break;
+      SIMPLE_CASE(',', TOKEN_COMMA);
       SIMPLE_CASE('<', TOKEN_LESSER);
       SIMPLE_CASE('>', TOKEN_GREATER);
       SIMPLE_CASE(';', TOKEN_SEMICOLON);
