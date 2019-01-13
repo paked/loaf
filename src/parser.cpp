@@ -427,7 +427,7 @@ bool parser_parse(Parser* p, Hunk* hunk) {
   logf("finished building AST\n");
 
   {
-    Scope types = scope_makeRootTypeScope();
+    Scope types = rootScope;
 
     Scope symbols = {};
     scope_init(&symbols);

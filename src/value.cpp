@@ -1,9 +1,11 @@
 enum ValueType {
   VALUE_NIL,
+
   VALUE_NUMBER,
   VALUE_BOOL,
-  VALUE_FUNCTION,
   VALUE_STRING,
+
+  VALUE_FUNCTION,
 
   // VALUE_OBJ
 };

@@ -123,6 +123,8 @@ Scope scope_makeRootTypeScope() {
   return s;
 }
 
+Scope rootScope = scope_makeRootTypeScope();
+
 #define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
 
 #define AST_NODE_IS_VALUE(type) ((type) == AST_NODE_NUMBER || AST_NODE_IS_ARITHMETIC((type)))
@@ -701,10 +703,9 @@ bool ast_typeCheck(ASTNode* node, Scope* symbols, Scope* types) {
     case AST_NODE_FUNCTION_DECLARATION:
       {
         Scope symbols = {};
-        Scope types = {};
-
         scope_init(&symbols);
-        scope_init(&types);
+
+        Scope types = rootScope;
 
         if (!ast_typeCheck(node->functionDeclaration.block, &symbols, &types)) {
           return false;

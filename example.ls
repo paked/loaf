@@ -1,31 +1,10 @@
-var temp number // temp = 0
+func fuck() {
+    var lol number
 
-temp
-log
+    lol = 100
 
-func potato {
-    why := 100
-
-    why
+    lol
     log
 }
 
-potato()
-
-x := 332
-
-x = 1
-
-if x > 2 {
-    x := 2
-    y := 24
-
-    y
-    log
-
-    x
-    log
-}
-
-x
-log
+fuck()
