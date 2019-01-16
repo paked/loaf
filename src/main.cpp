@@ -19,6 +19,7 @@
 
 #include <bytecode.cpp>
 #include <lexer.cpp>
+#include <typing.cpp>
 #include <ast.cpp>
 #include <parser.cpp>
 
@@ -90,6 +91,8 @@ int main(int argc, char** argv) {
   parser_init(&parser, tokens);
 
   if (!parser_parse(&parser, &hunk)) {
+    logf("Couldn't parse program...\n");
+
     return -1;
   }
 

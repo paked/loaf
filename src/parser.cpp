@@ -426,6 +426,7 @@ bool parser_parse(Parser* p, Hunk* hunk) {
 
   logf("finished building AST\n");
 
+  /*
   {
     Scope types = rootScope;
 
@@ -452,6 +453,7 @@ bool parser_parse(Parser* p, Hunk* hunk) {
 
   // Need to show some output
   hunk_write(hunk, OP_RETURN, 0);
+  */
 
-  return true;
+  return false;
 }
