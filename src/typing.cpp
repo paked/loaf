@@ -237,6 +237,22 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
         return true;
       } break;
+    case AST_NODE_ASSIGNMENT_DECLARATION:
+      {
+        Symbol* type = 0;
+        if (!getType(node->assignmentDeclaration.right, symbols, &type)) {
+          return false;
+        }
+
+        assert(node->assignmentDeclaration.left->type == AST_NODE_IDENTIFIER);
+
+        Token tok = node->assignmentDeclaration.left->identifier.token;
+
+        Symbol identifier = symbol_makeDeclaration(tok.start, tok.len, type);
+        symbolTable_add(symbols, &identifier);
+
+        printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
+      } break;
     default:
       {
         printf("can't typecheck: %d\n", node->type);

@@ -2,4 +2,6 @@ var x number
 var y bool
 var z number
 
-x = x
+g := 10
+
+x = x + g
