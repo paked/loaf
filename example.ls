@@ -1,10 +1,4 @@
-func fuck() {
-    var lol number
+var x number
+var y bool
 
-    lol = 100
-
-    lol
-    log
-}
-
-fuck()
+x = x + y

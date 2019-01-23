@@ -422,9 +422,18 @@ ParseFunction parseFunctions[] = {parser_parseStatement};
 psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
 
 bool parser_parse(Parser* p, Hunk* hunk) {
-  parser_parseScope(p, &p->root);
+  if (!parser_parseScope(p, &p->root)) {
+    return false;
+  }
 
   logf("finished building AST\n");
+
+  SymbolTable symbols = {};
+
+  symbolTable_add(&symbols, symbol_makeAtomic("number", VALUE_NUMBER));
+  symbolTable_add(&symbols, symbol_makeAtomic("bool", VALUE_BOOL));
+
+  typeCheck(&p->root, &symbols);
 
   /*
   {

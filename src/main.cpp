@@ -19,8 +19,8 @@
 
 #include <bytecode.cpp>
 #include <lexer.cpp>
-#include <typing.cpp>
 #include <ast.cpp>
+#include <typing.cpp>
 #include <parser.cpp>
 
 int main(int argc, char** argv) {
