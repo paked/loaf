@@ -430,8 +430,14 @@ bool parser_parse(Parser* p, Hunk* hunk) {
 
   SymbolTable symbols = {};
 
-  symbolTable_add(&symbols, symbol_makeAtomic("number", VALUE_NUMBER));
-  symbolTable_add(&symbols, symbol_makeAtomic("bool", VALUE_BOOL));
+  Symbol Number = symbol_makeAtomic("number", VALUE_NUMBER);
+  Symbol Bool = symbol_makeAtomic("bool", VALUE_BOOL);
+
+  symbolTable_add(&symbols, &Number);
+  symbolTable_add(&symbols, &Bool);
+
+  Symbol_Atomic_Number = Number.id;
+  Symbol_Atomic_Bool = Bool.id;
 
   typeCheck(&p->root, &symbols);
 

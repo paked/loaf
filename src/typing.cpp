@@ -25,7 +25,12 @@ struct Symbol_Function {
   array(Symbol_Declaration) parameters;
 };
 
+int Symbol_Atomic_Number;
+int Symbol_Atomic_Bool;
+
 struct Symbol {
+  int id;
+
   char* name;
   int nameLen;
 
@@ -72,23 +77,25 @@ struct SymbolTable {
 
 // add adds a symbol into the symbol table. Return value is false iff the
 // symbols name already exists in the current level of scope.
-bool symbolTable_add(SymbolTable* symbols, Symbol sym) {
+bool symbolTable_add(SymbolTable* symbols, Symbol* sym) {
   for (int i = 0; i < symbols->count; i++) {
     Symbol s = symbols->symbols[i];
     // compare s and sym names
 
-    if (s.nameLen != sym.nameLen) {
+    if (s.nameLen != sym->nameLen) {
       break;
     }
 
-    if (strncmp(s.name, sym.name, s.nameLen) == 0) {
+    if (strncmp(s.name, sym->name, s.nameLen) == 0) {
       return false;
     }
   }
 
   assert(symbols->count < MAX_SYMBOLS);
 
-  symbols->symbols[symbols->count] = sym;
+  sym->id = symbols->count;
+
+  symbols->symbols[symbols->count] = *sym;
 
   symbols->count += 1;
 
@@ -119,20 +126,58 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
   switch (node->type) {
     case AST_NODE_ADD:
       {
-      } break;
-    case AST_NODE_IDENTIFIER:
-      {
-        Token tok = node->identifier.token;
+        Symbol* lhs = 0;
+        if (!getType(node->assignment.left, symbols, &lhs)) {
+          return false;
+        }
 
-        if (!symbolTable_get(symbols, tok.start, tok.len, sym)) {
+        Symbol* rhs = 0;
+        if (!getType(node->assignment.right, symbols, &rhs)) {
+          return false;
+        }
+
+        if (lhs->id != rhs->id) {
+          printf("left and right hand side are different types\n");
+
+          return false;
+        }
+
+        if (lhs->id != Symbol_Atomic_Number) {
+          printf("one of the types is not a number\n");
+
+          return false;
+        }
+
+        *sym = rhs;
+
+        return true;
+      } break;
+    case AST_NODE_NUMBER:
+      {
+        // TODO(harrison): lookup via Symbol_Atomic_Number field
+        char* number = (char*) "number";
+        if (!symbolTable_get(symbols, number, strlen(number), sym)) {
           return false;
         }
 
         return true;
       } break;
+    case AST_NODE_IDENTIFIER:
+      {
+        Token tok = node->identifier.token;
+
+        Symbol* decl = 0;
+        if (!symbolTable_get(symbols, tok.start, tok.len, &decl)) {
+          return false;
+        }
+
+        *sym = decl->info.declaration.typeSymbol;
+
+        return true;
+      } break;
     default:
       {
-        printf("can't get type of something\n");
+        printf("can't get type of %d\n", node->type);
       } break;
   }
 
@@ -166,7 +211,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         Symbol identifier = symbol_makeDeclaration(node->declaration.identifier.start, node->declaration.identifier.len, type);
-        symbolTable_add(symbols, identifier);
+        symbolTable_add(symbols, &identifier);
 
         printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
 
@@ -184,10 +229,11 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           return false;
         }
 
-        /*
-        if (!symbol_isSame(*lhs, *rhs)) {
+        if (lhs->id != rhs->id) {
+          printf("differing types\n");
+
           return false;
-        }*/
+        }
 
         return true;
       } break;
