@@ -19,10 +19,11 @@ struct Symbol_Atomic {
   ValueType type;
 };
 
+
 struct Symbol_Function {
 //  Symbol* returnType;
 
-  array(Symbol_Declaration) parameters;
+  array(Symbol*) parameterTypes;
 };
 
 int Symbol_Atomic_Number;
@@ -42,6 +43,8 @@ struct Symbol {
     Symbol_Function function;
   } info;
 };
+
+array_for_name(Symbol*, Symbolp)
 
 Symbol symbol_makeAtomic(const char* str, ValueType t) {
   Symbol sym = {};
@@ -67,6 +70,18 @@ Symbol symbol_makeDeclaration(char* str, int strLen, Symbol* type) {
   return sym;
 }
 
+Symbol symbol_makeFunction(char* str, int strLen, array(Symbol*) paramTypes) {
+  Symbol sym = {};
+  sym.type = SYMBOL_FUNCTION;
+
+  sym.name = str;
+  sym.nameLen = strLen;
+
+  sym.info.function.parameterTypes = paramTypes;
+
+  return sym;
+}
+
 #define MAX_SYMBOLS (10)
 struct SymbolTable {
   Symbol symbols[MAX_SYMBOLS];
@@ -75,13 +90,18 @@ struct SymbolTable {
   SymbolTable* parent;
 };
 
+// init adds a parent to a symbol table.
+void symbolTable_init(SymbolTable* symbols, SymbolTable* parent) {
+  symbols->parent = parent;
+}
+
 // add adds a symbol into the symbol table. Return value is false iff the
 // symbols name already exists in the current level of scope.
 bool symbolTable_add(SymbolTable* symbols, Symbol* sym) {
   for (int i = 0; i < symbols->count; i++) {
     Symbol s = symbols->symbols[i];
-    // compare s and sym names
 
+    // compare s and sym names
     if (s.nameLen != sym->nameLen) {
       break;
     }
@@ -118,9 +138,29 @@ bool symbolTable_get(SymbolTable* symbols, char* name, int nameLen, Symbol** sym
   }
 
   // TODO(harrison): search parent table
+  if (symbols->parent != 0) {
+    return symbolTable_get(symbols->parent, name, nameLen, sym);
+  }
 
   return false;
 }
+
+SymbolTable symbolTable_makeDefaults() {
+  SymbolTable symbols = {};
+
+  Symbol Number = symbol_makeAtomic("number", VALUE_NUMBER);
+  Symbol Bool = symbol_makeAtomic("bool", VALUE_BOOL);
+
+  symbolTable_add(&symbols, &Number);
+  symbolTable_add(&symbols, &Bool);
+
+  Symbol_Atomic_Number = Number.id;
+  Symbol_Atomic_Bool = Bool.id;
+
+  return symbols;
+}
+
+SymbolTable DefaultSymbols = symbolTable_makeDefaults();
 
 bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
   switch (node->type) {
@@ -156,9 +196,7 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
       {
         // TODO(harrison): lookup via Symbol_Atomic_Number field
         char* number = (char*) "number";
-        if (!symbolTable_get(symbols, number, strlen(number), sym)) {
-          return false;
-        }
+        assert(symbolTable_get(symbols, number, strlen(number), sym));
 
         return true;
       } break;
@@ -168,6 +206,7 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         Symbol* decl = 0;
         if (!symbolTable_get(symbols, tok.start, tok.len, &decl)) {
+          printf("ident doesn't exist\n");
           return false;
         }
 
@@ -211,7 +250,11 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         Symbol identifier = symbol_makeDeclaration(node->declaration.identifier.start, node->declaration.identifier.len, type);
-        symbolTable_add(symbols, &identifier);
+        if (!symbolTable_add(symbols, &identifier)) {
+          printf("symbol '%.*s' already exists in current scope\n", identifier.nameLen, identifier.name);
+
+          return false;
+        }
 
         printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
 
@@ -241,6 +284,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
       {
         Symbol* type = 0;
         if (!getType(node->assignmentDeclaration.right, symbols, &type)) {
+          printf("can't get type\n");
           return false;
         }
 
@@ -249,9 +293,102 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         Token tok = node->assignmentDeclaration.left->identifier.token;
 
         Symbol identifier = symbol_makeDeclaration(tok.start, tok.len, type);
-        symbolTable_add(symbols, &identifier);
+        if (!symbolTable_add(symbols, &identifier)) {
+          printf("symbol '%.*s' already exists in current scope\n", identifier.nameLen, identifier.name);
+
+          return false;
+        }
 
         printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
+
+        return true;
+      } break;
+    case AST_NODE_FUNCTION_DECLARATION:
+      {
+        array(Symbol*) params = array_Symbolp_init();
+
+        for (int i = 0; i < (int) array_count(node->functionDeclaration.parameters); i++) {
+          Parameter p = node->functionDeclaration.parameters[i];
+
+          Symbol* type = 0;
+          if (!symbolTable_get(symbols, p.type.start, p.type.len, &type)) {
+            printf("unknown type: %.*s\n", p.type.len, p.type.start);
+
+            return false;
+          }
+
+          // TODO(harrison): ensure symbol added is actually a type (and not a declaration)
+
+          array_Symbolp_add(&params, type);
+        }
+
+        Token tok = node->functionDeclaration.identifier;
+
+        Symbol function = symbol_makeFunction(tok.start, tok.len, params);
+        if (!symbolTable_add(symbols, &function)) {
+          printf("symbol '%.*s' already exists in current scope\n", function.nameLen, function.name);
+
+          return false;
+        }
+
+        SymbolTable childSymbols = {};
+        symbolTable_init(&childSymbols, &DefaultSymbols);
+
+        for (int i = 0; i < (int) array_count(node->functionDeclaration.parameters); i++) {
+          Parameter p = node->functionDeclaration.parameters[i];
+          ASTNode temp = ast_makeDeclaration(p.identifier, p.type);
+
+          if (!typeCheck(&temp, &childSymbols)) {
+            printf("something failed setting up a parameter\n");
+
+            return false;
+          }
+        }
+
+        return typeCheck(node->functionDeclaration.block, &childSymbols);
+      } break;
+    case AST_NODE_FUNCTION_CALL:
+      {
+        Symbol* function = 0;
+
+        Token ident = node->functionCall.identifier;
+        {
+          if (!symbolTable_get(symbols, ident.start, ident.len, &function)) {
+            printf("can't get symbol\n: %.*s", ident.len, ident.start);
+
+            return false;
+          }
+        }
+
+        if (function->type != SYMBOL_FUNCTION) {
+          printf("symbol %.*s is not a function\n", ident.len, ident.start);
+
+          return false;
+        }
+
+        if (array_count(function->info.function.parameterTypes) != array_count(node->functionCall.args)) {
+          printf("argument count mismatch\n");
+
+          return false;
+        }
+
+        for (psize i = 0; i < array_count(function->info.function.parameterTypes); i++) {
+          ASTNode* arg = &node->functionCall.args[i];
+          Symbol* paramType = function->info.function.parameterTypes[i];
+
+          Symbol* argType = 0;
+          if (!getType(arg, symbols, &argType)) {
+            return false;
+          }
+
+          if (argType->id != paramType->id) {
+            printf("parameter has wrong type!\n");
+
+            return false;
+          }
+        }
+
+        return true;
       } break;
     default:
       {

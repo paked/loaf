@@ -132,29 +132,22 @@ Scope rootScope = scope_makeRootTypeScope();
 enum ASTNodeType : uint32 {
   AST_NODE_INVALID,
   AST_NODE_ROOT,
-
   AST_NODE_ASSIGNMENT,
   AST_NODE_ASSIGNMENT_DECLARATION,
   AST_NODE_FUNCTION_CALL,
-
   AST_NODE_ADD,
   AST_NODE_SUBTRACT,
   AST_NODE_MULTIPLY,
   AST_NODE_DIVIDE,
-
   AST_NODE_IF,
   AST_NODE_FUNCTION_DECLARATION,
-
   AST_NODE_TEST_EQUAL,
   AST_NODE_TEST_GREATER,
   AST_NODE_TEST_LESSER,
-
   AST_NODE_IDENTIFIER,
   AST_NODE_VALUE,
   AST_NODE_NUMBER,
-
   AST_NODE_LOG,
-
   AST_NODE_DECLARATION
 };
 
@@ -193,6 +186,14 @@ struct Parameter {
   Token type;
 };
 
+struct ASTNode_Declaration {
+  Token identifier;
+  Token type;
+
+  // TODO(harrison): remove this field after finishing new type check system
+  Value value; // NOT set until type checking
+};
+
 array_for(Parameter);
 
 struct ASTNode_Function {
@@ -211,13 +212,6 @@ struct ASTNode_FunctionCall {
 
 struct ASTNode_Log {};
 
-struct ASTNode_Declaration {
-  Token identifier;
-  Token type;
-
-  Value value; // NOT set until type checking
-};
-
 struct ASTNode {
   ASTNodeType type;
 
@@ -225,7 +219,6 @@ struct ASTNode {
 
   union {
     ASTNode_Root root;
-
     ASTNode_Binary assignmentDeclaration;
     ASTNode_Binary assignment;
 
