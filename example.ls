@@ -19,4 +19,7 @@ if x == g {
     var m number
 
     m = m + x
+
+    m
+    log
 }

@@ -84,17 +84,26 @@ int main(int argc, char** argv) {
     }
   }
 
-  Hunk hunk = {};
-  hunk_init(&hunk);
-
   Parser parser = {};
   parser_init(&parser, tokens);
 
-  if (!parser_parse(&parser, &hunk)) {
+  if (!parser_parse(&parser)) {
     logf("Couldn't parse program...\n");
 
     return -1;
   }
+
+  SymbolTable symbols = {};
+  symbolTable_init(&symbols, &DefaultSymbols);
+
+  if (!typeCheck(&parser.root, &symbols)) {
+    printf("Typecheck failed...\n");
+
+    return -1;
+  }
+
+  Hunk hunk = {};
+  hunk_init(&hunk);
 
   VM vm = {0};
 

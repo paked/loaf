@@ -176,12 +176,6 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
       ASTNode op = OP();
       ASTNode right = RIGHT();
 
-      if (!ast_nodeHasValue(left)) {
-        assert(!"Left node doesn't have value");
-
-        return false;
-      }
-
       if (op.type != currentOP) {
         array_ASTNode_add(&working, left);
         array_ASTNode_add(&working, op);
@@ -189,12 +183,6 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
         i += 2;
 
         continue;
-      }
-
-      if (!ast_nodeHasValue(right)) {
-        assert(!"Right node doesn't have value");
-
-        return false;
       }
 
       Token t = {};
@@ -416,51 +404,6 @@ bool parser_parseBlock(Parser* p, ASTNode* node) {
   return false;
 }
 
-typedef bool (*ParseFunction)(Parser* p, ASTNode* node);
-
-ParseFunction parseFunctions[] = {parser_parseStatement};
-psize parseFunctionsLen = sizeof(parseFunctions)/sizeof(ParseFunction);
-
-bool parser_parse(Parser* p, Hunk* hunk) {
-  if (!parser_parseScope(p, &p->root)) {
-    return false;
-  }
-
-  logf("finished building AST\n");
-
-  SymbolTable symbols = {};
-  symbolTable_init(&symbols, &DefaultSymbols);
-
-  typeCheck(&p->root, &symbols);
-
-  /*
-  {
-    Scope types = rootScope;
-
-    Scope symbols = {};
-    scope_init(&symbols);
-
-    if (!ast_typeCheck(&p->root, &symbols, &types)) {
-      logf("Invalid type in code\n");
-
-      return false;
-    }
-  }
-
-  {
-    Scope scope = {};
-    scope_init(&scope);
-
-    if (!ast_writeBytecode(&p->root, hunk, &scope)) {
-      logf("Could not generate bytecode\n");
-
-      return false;
-    }
-  }
-
-  // Need to show some output
-  hunk_write(hunk, OP_RETURN, 0);
-  */
-
-  return false;
+bool parser_parse(Parser* p) {
+  return parser_parseScope(p, &p->root);
 }

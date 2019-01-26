@@ -163,6 +163,9 @@ SymbolTable DefaultSymbols = symbolTable_makeDefaults();
 bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
   switch (node->type) {
     case AST_NODE_ADD:
+    case AST_NODE_SUBTRACT:
+    case AST_NODE_MULTIPLY:
+    case AST_NODE_DIVIDE:
       {
         Symbol* lhs = 0;
         if (!getType(node->assignment.left, symbols, &lhs)) {
@@ -191,6 +194,8 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
         return true;
       } break;
     case AST_NODE_TEST_EQUAL:
+    case AST_NODE_TEST_GREATER:
+    case AST_NODE_TEST_LESSER:
       {
         Symbol* lhs = 0;
         if (!getType(node->assignment.left, symbols, &lhs)) {
@@ -428,6 +433,11 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         symbolTable_init(&childSymbols, symbols);
 
         return typeCheck(node->cIf.block, &childSymbols);
+      } break;
+    case AST_NODE_IDENTIFIER:
+    case AST_NODE_LOG:
+      {
+        return true;
       } break;
     default:
       {
