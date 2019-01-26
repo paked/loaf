@@ -19,7 +19,6 @@ struct Symbol_Atomic {
   ValueType type;
 };
 
-
 struct Symbol_Function {
 //  Symbol* returnType;
 
@@ -137,7 +136,6 @@ bool symbolTable_get(SymbolTable* symbols, char* name, int nameLen, Symbol** sym
     }
   }
 
-  // TODO(harrison): search parent table
   if (symbols->parent != 0) {
     return symbolTable_get(symbols->parent, name, nameLen, sym);
   }
@@ -192,11 +190,34 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         return true;
       } break;
+    case AST_NODE_TEST_EQUAL:
+      {
+        Symbol* lhs = 0;
+        if (!getType(node->assignment.left, symbols, &lhs)) {
+          return false;
+        }
+
+        Symbol* rhs = 0;
+        if (!getType(node->assignment.right, symbols, &rhs)) {
+          return false;
+        }
+
+        if (lhs->id != rhs->id) {
+          printf("left and right hand side are different types\n");
+
+          return false;
+        }
+
+        char* Bool = (char*) "bool";
+        assert(symbolTable_get(symbols, Bool, 4, sym));
+
+        return true;
+      } break;
     case AST_NODE_NUMBER:
       {
         // TODO(harrison): lookup via Symbol_Atomic_Number field
         char* number = (char*) "number";
-        assert(symbolTable_get(symbols, number, strlen(number), sym));
+        assert(symbolTable_get(symbols, number, 6, sym));
 
         return true;
       } break;
@@ -389,6 +410,24 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         return true;
+      } break;
+    case AST_NODE_IF:
+      {
+        Symbol* condType = 0;
+        if (!getType(node->cIf.condition, symbols, &condType)) {
+          return false;
+        }
+
+        if (condType->id != Symbol_Atomic_Bool) {
+          printf("expression does not evaluate to a bool\n");
+
+          return false;
+        }
+
+        SymbolTable childSymbols = {};
+        symbolTable_init(&childSymbols, symbols);
+
+        return typeCheck(node->cIf.block, &childSymbols);
       } break;
     default:
       {
