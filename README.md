@@ -19,20 +19,24 @@ Or alternatively run the `build.bash` and `run.bash` scripts as you need.
 - Type system
   - [x] Properly scope types
   - [x] Do a basic static type check for builtin types (number and bool)
+  - [x] Typecheck functions
   - [ ] Create some sort of type/operation compatibility table
-  - [ ] Custom type support
+  - [ ] Custom type support (structs)
 - Functions
   - [x] Store/retrieve globals
     - [x] Create Value table
   - [x] Call frames
   - [x] Execute parameterless, return value-less functions (ie. procedures)
-  - [ ] Typed parameters
+  - [x] Access parameters inside functions
   - [ ] Return values
-- Make some new statements
-  - [x] var statement to declare variable by type with a default value
+- More language features
+  - [x] `var` statement to declare variable by type with a default value
+  - [ ] `&&` and `||`
+  - [ ] `>=` and `<=`
   - [ ] For loop
   - [ ] While loop
   - [ ] Else/else-if statements
+  - [ ] Go style multi-statement if statements
 - Structs
 - Another compilation target
   - [ ] WebAssembly
