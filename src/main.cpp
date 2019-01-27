@@ -20,6 +20,7 @@
 #include <bytecode.cpp>
 #include <lexer.cpp>
 #include <ast.cpp>
+#include <typing.cpp>
 #include <parser.cpp>
 
 int main(int argc, char** argv) {
@@ -83,15 +84,37 @@ int main(int argc, char** argv) {
     }
   }
 
-  Hunk hunk = {};
-  hunk_init(&hunk);
-
   Parser parser = {};
   parser_init(&parser, tokens);
 
-  if (!parser_parse(&parser, &hunk)) {
+  if (!parser_parse(&parser)) {
+    logf("Couldn't parse program...\n");
+
     return -1;
   }
+
+  SymbolTable symbols = {};
+  symbolTable_init(&symbols, &DefaultSymbols);
+
+  if (!typeCheck(&parser.root, &symbols)) {
+    logf("Typecheck failed...\n");
+
+    return -1;
+  }
+
+  Hunk hunk = {};
+  hunk_init(&hunk);
+
+  Scope scope = {};
+  scope_init(&scope);
+
+  if (!ast_writeBytecode(&parser.root, &hunk, &scope)) {
+    logf("Couldn't generate bytecode\n");
+
+    return -1;
+  }
+
+  hunk_write(&hunk, OP_RETURN, 0);
 
   VM vm = {0};
 

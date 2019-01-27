@@ -1,10 +1,24 @@
-func fuck() {
-    var lol number
+var x number
+var y bool
+var z number
 
-    lol = 100
+g := 11
 
-    lol
+func hello(a number, b number) {
+    z := 22 - a
+
+    z
     log
 }
 
-fuck()
+hello(g, 10)
+
+if x == g {
+    var l bool
+    var m number
+
+    m = m + x
+
+    m
+    log
+}

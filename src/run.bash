@@ -11,6 +11,4 @@ fi
 BUILD_DIR=$PROJECT_DIR/build
 FILE=$PROJECT_DIR/example.ls
 
-$BUILD_DIR/loaf $FILE > .out.log
-
-cat .out.log
+$BUILD_DIR/loaf $FILE
