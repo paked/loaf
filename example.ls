@@ -4,15 +4,14 @@ var z number
 
 g := 10
 
-x = x + g
+func hello(a number, b number) {
+    z := 10 // + a
 
-func hello(a number, b bool) {
-    x := 10
-
-    x = a + 10
+    z
+    log
 }
 
-hello(10, y)
+hello(g, 10)
 
 if x == g {
     var l bool

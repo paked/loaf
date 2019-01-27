@@ -97,13 +97,24 @@ int main(int argc, char** argv) {
   symbolTable_init(&symbols, &DefaultSymbols);
 
   if (!typeCheck(&parser.root, &symbols)) {
-    printf("Typecheck failed...\n");
+    logf("Typecheck failed...\n");
 
     return -1;
   }
 
   Hunk hunk = {};
   hunk_init(&hunk);
+
+  Scope scope = {};
+  scope_init(&scope);
+
+  if (!ast_writeBytecode(&parser.root, &hunk, &scope)) {
+    logf("Couldn't generate bytecode\n");
+
+    return -1;
+  }
+
+  hunk_write(&hunk, OP_RETURN, 0);
 
   VM vm = {0};
 

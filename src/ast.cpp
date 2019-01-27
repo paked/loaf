@@ -1,18 +1,15 @@
 struct Variable {
-  // Info for name string
   char* start;
   int len;
+  // TODO(harrison): embed token in here instead of start/len
 
   int slot;
-
-  int type;
 };
 
-#define SCOPE_MAX_VARIABLES (256)
-// TODO(harrison): remove some of the duplicate from scope_{exists,get,set} functions
+#define MAX_SYMBOLS (10)
 struct Scope {
   int count;
-  Variable variables[SCOPE_MAX_VARIABLES];
+  Variable variables[MAX_SYMBOLS];
 
   Scope* parent;
 };
@@ -37,7 +34,7 @@ int scope_getNextSlot(Scope *s) {
   return n;
 }
 
-bool scope_exists(Scope* s, char* name, int len) {
+bool scope_get(Scope* s, char* name, int len, int* slot) {
   for (int i = 0; i < s->count; i++) {
     Variable v = s->variables[i];
 
@@ -46,88 +43,45 @@ bool scope_exists(Scope* s, char* name, int len) {
     }
 
     if (memcmp(name, v.start, len) == 0) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-bool scope_exists(Scope* s, Token ident) {
-  return scope_exists(s, ident.start, ident.len);
-}
-
-bool scope_get(Scope* s, char* name, int len, Variable* var) {
-  for (int i = 0; i < s->count; i++) {
-    Variable v = s->variables[i];
-
-    if (v.len != len) {
-      continue;
-    }
-
-    if (memcmp(name, v.start, len) == 0) {
-      *var = v;
+      *slot = v.slot;
 
       return true;
     }
   }
 
   if (s->parent != 0) {
-    return scope_get(s->parent, name, len, var);
+    return scope_get(s->parent, name, len, slot);
   }
 
   return false;
 }
 
-bool scope_get(Scope* s, Token ident, Variable* var) {
-  return scope_get(s, ident.start, ident.len, var);
+bool scope_get(Scope* s, Token ident, int* slot) {
+  return scope_get(s, ident.start, ident.len, slot);
 }
 
 int scope_set(Scope* s, Variable* var) {
-  if (scope_exists(s, var->start, var->len)) {
-    return -1;
+  for (int i = 0; i < s->count; i++) {
+    Variable v = s->variables[i];
+
+    if (v.len != var->len) {
+      break;
+    }
+
+    if (strncmp(v.start, var->start, v.len) == 0) {
+      return false;
+    }
   }
 
-  assert(s->count < 255);
+  assert(s->count < MAX_SYMBOLS);
 
   var->slot = scope_getNextSlot(s);
 
-  // If it doesn't, add a new one
   s->variables[s->count] = *var;
   s->count += 1;
 
   return var->slot;
 }
-
-Scope scope_makeRootTypeScope() {
-  Scope s = {};
-  scope_init(&s);
-
-  String numberStr;
-  string_make(&numberStr, (char*) "number", 6);
-
-  String boolStr;
-  string_make(&boolStr, (char*) "bool", 4);
-
-  Variable numberType;
-  numberType.start = numberStr.str;
-  numberType.len = numberStr.len - 1; // ignore null terminator
-
-  Variable boolType;
-  boolType.start = boolStr.str;
-  boolType.len = boolStr.len - 1; // ignore null terminator
-
-  scope_set(&s, &numberType);
-  scope_set(&s, &boolType);
-
-  return s;
-}
-
-Scope rootScope = scope_makeRootTypeScope();
-
-#define AST_NODE_IS_ARITHMETIC(type) ((type) >= AST_NODE_ADD && (type) <= AST_NODE_DIVIDE)
-
-#define AST_NODE_IS_VALUE(type) ((type) == AST_NODE_NUMBER || AST_NODE_IS_ARITHMETIC((type)))
 
 enum ASTNodeType : uint32 {
   AST_NODE_INVALID,
@@ -189,9 +143,6 @@ struct Parameter {
 struct ASTNode_Declaration {
   Token identifier;
   Token type;
-
-  // TODO(harrison): remove this field after finishing new type check system
-  Value value; // NOT set until type checking
 };
 
 array_for(Parameter);
@@ -447,49 +398,27 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
           }
         }
       } break;
-    case AST_NODE_DECLARATION:
-      {
-        ASTNode temp = ast_makeValue(node->declaration.value, node->declaration.identifier);
-
-        if (!ast_writeBytecode(&temp, hunk, scope)) {
-          return false;
-        }
-
-        Variable var = {};
-        var.start = node->declaration.identifier.start;
-        var.len = node->declaration.identifier.len;
-
-        if (scope_set(scope, &var) == -1) {
-          logf("can't create variable\n");
-
-          return false;
-        }
-
-        hunk_write(hunk, OP_SET_LOCAL, node->line);
-        hunk_write(hunk, var.slot, node->line);
-      } break;
     case AST_NODE_ASSIGNMENT:
       {
         ASTNode* left = node->assignmentDeclaration.left;
         assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        // assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
           return false;
         }
 
-        Variable var = {};
-        if (!scope_get(scope, left->identifier.token.start, left->identifier.token.len, &var)) {
-          logf("ERROR: variable doesn't exist!\n");
+        int slot = -1;
+        if (!scope_get(scope, left->identifier.token.start, left->identifier.token.len, &slot)) {
+          logf("ERROR: variable doesn't exist2!\n");
 
           return false;
         }
 
         hunk_write(hunk, OP_SET_LOCAL, node->line);
-        hunk_write(hunk, var.slot, node->line);
+        hunk_write(hunk, slot, node->line);
       } break;
     case AST_NODE_ASSIGNMENT_DECLARATION:
       {
@@ -501,12 +430,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
-          return false;
-        }
-
-        if (scope_exists(scope, left->identifier.token.start, left->identifier.token.len)) {
-          logf("ERROR: variable already exists!\n");
-
           return false;
         }
 
@@ -600,16 +523,15 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
       } break;
     case AST_NODE_IDENTIFIER:
       {
-        Variable var = {};
-
-        if (!scope_get(scope, node->identifier.token.start, node->identifier.token.len, &var)) {
-          logf("ERROR: variable doesn't exist!\n");
+        int slot = -1;
+        if (!scope_get(scope, node->identifier.token.start, node->identifier.token.len, &slot)) {
+          logf("ERROR: variable doesn't exist1!\n");
 
           return false;
         }
 
         hunk_write(hunk, OP_GET_LOCAL, node->line);
-        hunk_write(hunk, var.slot, node->line);
+        hunk_write(hunk, slot, node->line);
       } break;
 #define BINARY_POP() \
        do { \

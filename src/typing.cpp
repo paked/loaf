@@ -17,6 +17,8 @@ struct Symbol_Declaration {
 
 struct Symbol_Atomic {
   ValueType type;
+
+  Value zero;
 };
 
 struct Symbol_Function {
@@ -54,6 +56,8 @@ Symbol symbol_makeAtomic(const char* str, ValueType t) {
 
   sym.info.atomic.type = t;
 
+  sym.info.atomic.zero = value_make(t);
+
   return sym;
 }
 
@@ -81,7 +85,6 @@ Symbol symbol_makeFunction(char* str, int strLen, array(Symbol*) paramTypes) {
   return sym;
 }
 
-#define MAX_SYMBOLS (10)
 struct SymbolTable {
   Symbol symbols[MAX_SYMBOLS];
   int count;
@@ -240,9 +243,39 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         return true;
       } break;
+    case AST_NODE_VALUE:
+      {
+        Value v = node->value.val;
+
+        char* str;
+        int len;
+
+        switch (v.type) {
+          case VALUE_NUMBER:
+            {
+              str = (char*) "number";
+              len = 6;
+            } break;
+          case VALUE_BOOL:
+            {
+              str = (char*) "bool";
+              len = 4;
+            } break;
+          default:
+            {
+              logf("value type not supported currently\n");
+
+              return false;
+            } break;
+        }
+
+        assert(symbolTable_get(symbols, str, len, sym));
+
+        return true;
+      } break;
     default:
       {
-        printf("can't get type of %d\n", node->type);
+        printf("can't get type of AST node type: %d\n", node->type);
       } break;
   }
 
@@ -264,6 +297,13 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         return true;
       } break;
     case AST_NODE_DECLARATION:
+      // NOTE(harrison): Declaration is a bit tricky, because no initial value
+      // is supplied -- so we need to give one (there are no nil values in
+      // loaf). We transform this node type into an
+      // AST_NODE_ASSIGNMENT_DECLARATION using the "zero" value recorded in the
+      // relevant atomic type symbol.
+      //
+      // THIS NODE SHOULD NEVER MAKE IT PAST THIS STAGE.
       {
         Symbol* type = 0;
         {
@@ -275,16 +315,17 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           }
         }
 
-        Symbol identifier = symbol_makeDeclaration(node->declaration.identifier.start, node->declaration.identifier.len, type);
-        if (!symbolTable_add(symbols, &identifier)) {
-          printf("symbol '%.*s' already exists in current scope\n", identifier.nameLen, identifier.name);
+        // TODO(harrison): add symbol_getZero function when we add support for objects
+        assert(type->type == SYMBOL_ATOMIC);
 
-          return false;
-        }
+        ASTNode n = ast_makeAssignmentDeclaration(
+            ast_makeIdentifier(node->declaration.identifier),
+            ast_makeValue(type->info.atomic.zero, node->declaration.type),
+            node->declaration.identifier);
 
-        printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
+        *node = n;
 
-        return true;
+        return typeCheck(node, symbols);
       } break;
     case AST_NODE_ASSIGNMENT:
       {
@@ -310,7 +351,6 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
       {
         Symbol* type = 0;
         if (!getType(node->assignmentDeclaration.right, symbols, &type)) {
-          printf("can't get type\n");
           return false;
         }
 
