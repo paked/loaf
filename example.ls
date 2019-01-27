@@ -2,10 +2,10 @@ var x number
 var y bool
 var z number
 
-g := 10
+g := 11
 
 func hello(a number, b number) {
-    z := 10 // + a
+    z := 22 - a
 
     z
     log

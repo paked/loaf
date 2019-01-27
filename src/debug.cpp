@@ -10,3 +10,5 @@ int logf(const char* fmt, ...) {
   
   return n;
 }
+
+#define DEBUG

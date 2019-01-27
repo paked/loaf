@@ -102,7 +102,6 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
       } break;
 
   switch (in) {
-    SIMPLE_INSTRUCTION(OP_CALL);
     SIMPLE_INSTRUCTION(OP_SET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_GET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_LOG);
@@ -120,6 +119,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 
     SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
     SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
+    SIMPLE_INSTRUCTION2(OP_CALL);
 
     case OP_CONSTANT:
       {
@@ -188,29 +188,19 @@ struct VM {
   int frameCount;
 };
 
-bool vm_add_frame(VM* vm, Hunk* hunk) {
-  if (vm->frameCount >= VM_FRAME_MAX - 1) {
-    return false;
-  }
-
-  Frame f = {};
-  f.hunk = hunk;
-  f.ip = f.hunk->code;
-  f.originalStackPosition = vm->stackTop;
-
-  vm->frames[vm->frameCount] = f;
-
-  vm->frameCount += 1;
-
-  return true;
-}
-
 void vm_load(VM* vm, Hunk* hunk) {
   table_init(&vm->globals);
   vm->stackTop = vm->stack;
   vm->frameCount = 0;
 
-  assert(vm_add_frame(vm, hunk));
+  Frame f = {};
+
+  f.hunk = hunk;
+  f.ip = f.hunk->code;
+  f.originalStackPosition = vm->stackTop;
+
+  vm->frames[vm->frameCount] = f;
+  vm->frameCount += 1;
 }
 
 void vm_stack_push(VM* vm, Value val) {
@@ -229,6 +219,8 @@ ProgramResult vm_run(VM* vm) {
 #define READ() (*frame->ip++)
   while (vm->frameCount > 0) {
     Frame* frame = &vm->frames[vm->frameCount -1];
+
+#ifdef DEBUG
     for (int i = 0; i < VM_LOCALS_MAX; i++) {
       if (frame->slots[i].type == VALUE_NIL) {
         continue;
@@ -238,8 +230,14 @@ ProgramResult vm_run(VM* vm) {
       value_logln(frame->slots[i]);
     }
 
+    for (Value* v = vm->stack; v != (vm->stackTop); v += 1) {
+      logf("stack: ");
+      value_logln(*v);
+    }
+
     int offset = (int) (frame->ip - frame->hunk->code);
     hunk_disassembleInstruction(frame->hunk, offset);
+#endif
 
     Instruction in = READ();
 
@@ -304,12 +302,36 @@ ProgramResult vm_run(VM* vm) {
       case OP_CALL:
         {
           Value func = vm_stack_pop(vm);
+          int arity = (int) READ();
 
           if (func.type != VALUE_FUNCTION) {
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
-          assert(vm_add_frame(vm, func.as.function.hunk));
+          if (vm->frameCount >= VM_FRAME_MAX - 1) {
+            logf("ERROR: too many frames\n");
+
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Frame f = {};
+
+          {
+            for (int i = arity - 1; i >= 0; i--) {
+              Value param = vm_stack_pop(vm);
+
+              f.slots[i] = param;
+            }
+          }
+
+          Hunk* hunk = func.as.function.hunk;
+
+          f.hunk = hunk;
+          f.ip = f.hunk->code;
+          f.originalStackPosition = vm->stackTop;
+
+          vm->frames[vm->frameCount] = f;
+          vm->frameCount += 1;
         } break;
       case OP_JUMP_IF_FALSE:
         {

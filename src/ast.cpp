@@ -426,7 +426,6 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         assert(left->type == AST_NODE_IDENTIFIER);
 
         ASTNode* right = node->assignmentDeclaration.right;
-        // assert(ast_nodeHasValue(*right));
 
         // write instructions to push right side onto stack
         if (!ast_writeBytecode(right, hunk, scope)) {
@@ -457,6 +456,19 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         Scope s = {};
         scope_init(&s);
 
+        for (psize i = 0; i < array_count(node->functionDeclaration.parameters); i++) {
+          Parameter p = node->functionDeclaration.parameters[i];
+          Variable var = {};
+          var.start = p.identifier.start;
+          var.len = p.identifier.len;
+
+          if (scope_set(&s, &var) == -1) {
+            logf("can't set parameter. something weird is happening.\n");
+
+            return false;
+          }
+        }
+
         if (!ast_writeBytecode(node->functionDeclaration.block, h, &s)) {
           return false;
         }
@@ -475,8 +487,16 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
       } break;
     case AST_NODE_FUNCTION_CALL:
       {
-        Token ident = node->functionCall.identifier;
+        // Get all parameters and push them onto stack
+        for (psize i = 0; i < array_count(node->functionCall.args); i++) {
+          ASTNode* arg = &node->functionCall.args[i];
 
+          if (!ast_writeBytecode(arg, hunk, scope)) {
+            return false;
+          }
+        }
+
+        Token ident = node->functionCall.identifier;
         Value nameVal = value_make(ident.start, ident.len);
 
         int name = hunk_addConstant(hunk, nameVal);
@@ -486,6 +506,7 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_GET_GLOBAL, node->line);
 
         hunk_write(hunk, OP_CALL, node->line);
+        hunk_write(hunk, (Instruction) array_count(node->functionCall.args), node->line);
       } break;
     case AST_NODE_IF:
        {
