@@ -13,7 +13,7 @@ func hello(a number, b number) {
 
 hello(g, 10)
 
-if x == 1335 || g < 0 {
+if x >= 1999 {
     var l bool
     var m number
 

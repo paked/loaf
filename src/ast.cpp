@@ -97,7 +97,9 @@ enum ASTNodeType : uint32 {
   AST_NODE_FUNCTION_DECLARATION,
   AST_NODE_TEST_EQUAL,
   AST_NODE_TEST_GREATER,
+  AST_NODE_TEST_GREATER_EQUAL,
   AST_NODE_TEST_LESSER,
+  AST_NODE_TEST_LESSER_EQUAL,
   AST_NODE_TEST_OR,
   AST_NODE_TEST_AND,
   AST_NODE_IDENTIFIER,
@@ -253,6 +255,8 @@ ASTNode ast_makeOperator(ASTNodeType op, Token t) {
 
     case AST_NODE_TEST_GREATER:
     case AST_NODE_TEST_LESSER:
+    case AST_NODE_TEST_GREATER_EQUAL:
+    case AST_NODE_TEST_LESSER_EQUAL:
     case AST_NODE_TEST_EQUAL:
     case AST_NODE_TEST_AND:
     case AST_NODE_TEST_OR:
@@ -589,6 +593,18 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         BINARY_POP();
 
         hunk_write(hunk, OP_TEST_LT, node->line);
+      } break;
+    case AST_NODE_TEST_GREATER_EQUAL:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_TEST_GTE, node->line);
+      } break;
+    case AST_NODE_TEST_LESSER_EQUAL:
+      {
+        BINARY_POP();
+
+        hunk_write(hunk, OP_TEST_LTE, node->line);
       } break;
     case AST_NODE_TEST_AND:
       {

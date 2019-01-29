@@ -128,9 +128,19 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
     } else if (parser_expect(p, TOKEN_EQUALS, &t)) {
       n = ast_makeOperator(AST_NODE_TEST_EQUAL, t);
     } else if (parser_expect(p, TOKEN_GREATER, &t)) {
-      n = ast_makeOperator(AST_NODE_TEST_GREATER, t);
+      ASTNodeType type = AST_NODE_TEST_GREATER;
+      if (parser_expect(p, TOKEN_ASSIGNMENT)) {
+        type = AST_NODE_TEST_GREATER_EQUAL;
+      }
+
+      n = ast_makeOperator(type, t);
     } else if (parser_expect(p, TOKEN_LESSER, &t)) {
-      n = ast_makeOperator(AST_NODE_TEST_LESSER, t);
+      ASTNodeType type = AST_NODE_TEST_LESSER;
+      if (parser_expect(p, TOKEN_ASSIGNMENT)) {
+        type = AST_NODE_TEST_LESSER_EQUAL;
+      }
+
+      n = ast_makeOperator(type, t);
     } else if (parser_expect(p, TOKEN_AND, &t)) {
       n = ast_makeOperator(AST_NODE_TEST_AND, t);
     } else if (parser_expect(p, TOKEN_OR, &t)) {
@@ -166,6 +176,7 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
 
     // Comparative
     AST_NODE_TEST_EQUAL, AST_NODE_TEST_GREATER, AST_NODE_TEST_LESSER,
+    AST_NODE_TEST_GREATER_EQUAL, AST_NODE_TEST_LESSER_EQUAL,
 
     // Logical
     AST_NODE_TEST_AND, AST_NODE_TEST_OR,

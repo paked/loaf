@@ -199,6 +199,9 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
     case AST_NODE_TEST_EQUAL:
     case AST_NODE_TEST_GREATER:
     case AST_NODE_TEST_LESSER:
+    case AST_NODE_TEST_GREATER_EQUAL:
+    case AST_NODE_TEST_LESSER_EQUAL:
+
       {
         Symbol* lhs = 0;
         if (!getType(node->assignment.left, symbols, &lhs)) {

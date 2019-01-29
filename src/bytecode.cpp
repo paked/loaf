@@ -39,6 +39,9 @@ enum OPCode : Instruction {
   OP_TEST_EQ,   // ==
   OP_TEST_GT,   // >
   OP_TEST_LT,   // <
+  OP_TEST_GTE,   // >=
+  OP_TEST_LTE,   // <=
+
   OP_TEST_OR,   // ||
   OP_TEST_AND,  // &&
 
@@ -116,6 +119,8 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_TEST_EQ);
     SIMPLE_INSTRUCTION(OP_TEST_GT);
     SIMPLE_INSTRUCTION(OP_TEST_LT);
+    SIMPLE_INSTRUCTION(OP_TEST_GTE);
+    SIMPLE_INSTRUCTION(OP_TEST_LTE);
 
     SIMPLE_INSTRUCTION(OP_TEST_AND);
     SIMPLE_INSTRUCTION(OP_TEST_OR);
@@ -379,38 +384,24 @@ ProgramResult vm_run(VM* vm) {
 
           vm_stack_push(vm, c);
         } break;
-      case OP_TEST_GT:
-        {
-          Value b = vm_stack_pop(vm);
-          Value a = vm_stack_pop(vm);
-
-          if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) {
-            return PROGRAM_RESULT_RUNTIME_ERROR;
-          }
-
-          Value c = {};
-          c.type = VALUE_BOOL;
-
-          c.as.boolean = a.as.number > b.as.number;
-
-          vm_stack_push(vm, c);
+#define COMPARE(Name, Op) \
+      case Name: \
+        { \
+          Value b = vm_stack_pop(vm); \
+          Value a = vm_stack_pop(vm); \
+          if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) { \
+            return PROGRAM_RESULT_RUNTIME_ERROR; \
+          } \
+          Value c = {}; \
+          c.type = VALUE_BOOL; \
+          c.as.boolean = a.as.number Op b.as.number; \
+          vm_stack_push(vm, c); \
         } break;
-      case OP_TEST_LT:
-        {
-          Value b = vm_stack_pop(vm);
-          Value a = vm_stack_pop(vm);
-
-          if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) {
-            return PROGRAM_RESULT_RUNTIME_ERROR;
-          }
-
-          Value c = {};
-          c.type = VALUE_BOOL;
-
-          c.as.boolean = a.as.number < b.as.number;
-
-          vm_stack_push(vm, c);
-        } break;
+      COMPARE(OP_TEST_LT, <)
+      COMPARE(OP_TEST_LTE, <=)
+      COMPARE(OP_TEST_GT, >)
+      COMPARE(OP_TEST_GTE, >=)
+#undef COMPARE
       case OP_TEST_AND:
         {
           Value b = vm_stack_pop(vm);
