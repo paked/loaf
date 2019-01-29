@@ -30,6 +30,9 @@ enum TokenType : uint32 {
   TOKEN_GREATER,
   TOKEN_LESSER,
 
+  TOKEN_AND,
+  TOKEN_OR,
+
   TOKEN_BRACKET_OPEN,  // (
   TOKEN_BRACKET_CLOSE, // (
 
@@ -306,6 +309,26 @@ Token scanner_getToken(Scanner* scn) {
             t = scanner_readSinglelineComment(scn);
           } else {
             SIMPLE_TOKEN(TOKEN_DIVIDE);
+          }
+        } break;
+      case '&':
+        {
+          if (scanner_peek(scn) == '&') {
+            t.type = TOKEN_AND;
+            t.start = scn->head;
+            t.len = 2;
+
+            scn->head += t.len;
+          }
+        } break;
+      case '|':
+        {
+          if (scanner_peek(scn) == '|') {
+            t.type = TOKEN_OR;
+            t.start = scn->head;
+            t.len = 2;
+
+            scn->head += t.len;
           }
         } break;
       SIMPLE_CASE(',', TOKEN_COMMA);

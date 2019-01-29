@@ -1,4 +1,4 @@
-var x number
+x := 1337
 var y bool
 var z number
 
@@ -13,7 +13,7 @@ func hello(a number, b number) {
 
 hello(g, 10)
 
-if x == g {
+if x == 1335 || g < 0 {
     var l bool
     var m number
 

@@ -131,6 +131,10 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
       n = ast_makeOperator(AST_NODE_TEST_GREATER, t);
     } else if (parser_expect(p, TOKEN_LESSER, &t)) {
       n = ast_makeOperator(AST_NODE_TEST_LESSER, t);
+    } else if (parser_expect(p, TOKEN_AND, &t)) {
+      n = ast_makeOperator(AST_NODE_TEST_AND, t);
+    } else if (parser_expect(p, TOKEN_OR, &t)) {
+      n = ast_makeOperator(AST_NODE_TEST_OR, t);
     } else if (parser_expect(p, TOKEN_IDENTIFIER, &t)) {
       if (!parser_parseIdentifier(p, &n, t)) {
         return false;
@@ -161,7 +165,10 @@ bool parser_parseComplexExpression(Parser* p, ASTNode* node, TokenType endOn) {
     AST_NODE_MULTIPLY, AST_NODE_DIVIDE, AST_NODE_ADD, AST_NODE_SUBTRACT,
 
     // Comparative
-    AST_NODE_TEST_EQUAL, AST_NODE_TEST_GREATER, AST_NODE_TEST_LESSER
+    AST_NODE_TEST_EQUAL, AST_NODE_TEST_GREATER, AST_NODE_TEST_LESSER,
+
+    // Logical
+    AST_NODE_TEST_AND, AST_NODE_TEST_OR,
   };
 
   for (ASTNodeType currentOP : precedenceOrder) {

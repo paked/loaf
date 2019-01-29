@@ -117,6 +117,9 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_TEST_GT);
     SIMPLE_INSTRUCTION(OP_TEST_LT);
 
+    SIMPLE_INSTRUCTION(OP_TEST_AND);
+    SIMPLE_INSTRUCTION(OP_TEST_OR);
+
     SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
     SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
     SIMPLE_INSTRUCTION2(OP_CALL);
@@ -408,6 +411,38 @@ ProgramResult vm_run(VM* vm) {
 
           vm_stack_push(vm, c);
         } break;
+      case OP_TEST_AND:
+        {
+          Value b = vm_stack_pop(vm);
+          Value a = vm_stack_pop(vm);
+
+          if (!VALUE_IS_BOOL(a) || !VALUE_IS_BOOL(b)) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Value c = {};
+          c.type = VALUE_BOOL;
+
+          c.as.boolean = a.as.boolean && b.as.boolean;
+
+          vm_stack_push(vm, c);
+        } break;
+      case OP_TEST_OR:
+        {
+          Value b = vm_stack_pop(vm);
+          Value a = vm_stack_pop(vm);
+
+          if (!VALUE_IS_BOOL(a) || !VALUE_IS_BOOL(b)) {
+            return PROGRAM_RESULT_RUNTIME_ERROR;
+          }
+
+          Value c = {};
+          c.type = VALUE_BOOL;
+
+          c.as.boolean = a.as.boolean || b.as.boolean;
+
+          vm_stack_push(vm, c);
+        } break;
 #define BINARY_OP(op) \
   Value b = vm_stack_pop(vm); \
   Value a = vm_stack_pop(vm); \
@@ -438,7 +473,8 @@ ProgramResult vm_run(VM* vm) {
 #undef BINARY_OP
       default:
         {
-          // vm_setError("Unknown instruction");
+          logf("Unknown instruction. Exiting...\n");
+
           return PROGRAM_RESULT_RUNTIME_ERROR;
         } break;
     }

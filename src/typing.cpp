@@ -221,6 +221,35 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         return true;
       } break;
+    case AST_NODE_TEST_AND:
+    case AST_NODE_TEST_OR:
+      {
+        Symbol* lhs = 0;
+        if (!getType(node->assignment.left, symbols, &lhs)) {
+          return false;
+        }
+
+        Symbol* rhs = 0;
+        if (!getType(node->assignment.right, symbols, &rhs)) {
+          return false;
+        }
+
+        if (lhs->id != rhs->id) {
+          printf("left and right hand side are different types\n");
+
+          return false;
+        }
+
+        if (lhs->id != Symbol_Atomic_Bool) {
+          printf("one (or more) of the types is not a boolean\n");
+
+          return false;
+        }
+
+        *sym = rhs;
+
+        return true;
+      } break;
     case AST_NODE_NUMBER:
       {
         // TODO(harrison): lookup via Symbol_Atomic_Number field
