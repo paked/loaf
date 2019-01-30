@@ -13,9 +13,10 @@ enum TokenType : uint32 {
 
   TOKEN_TRUE,
   TOKEN_FALSE,
+
   TOKEN_IF,
   TOKEN_FUNC,
-
+  TOKEN_RETURN,
   TOKEN_VAR,
 
   TOKEN_ASSIGNMENT,
@@ -141,6 +142,7 @@ Token scanner_readIdentifier(Scanner* scn) {
   // if
   // func
   // var
+  // return
   if (t.len == 4) {
     if (strncmp(t.start, "true", 4) == 0) {
       t.type = TOKEN_TRUE;
@@ -160,6 +162,10 @@ Token scanner_readIdentifier(Scanner* scn) {
   } else if (t.len == 2) {
     if (strncmp(t.start, "if", 2) == 0) {
       t.type = TOKEN_IF;
+    }
+  } else if (t.len == 6) {
+    if (strncmp(t.start, "return", 6) == 0) {
+      t.type = TOKEN_RETURN;
     }
   }
 

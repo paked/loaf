@@ -4,14 +4,16 @@ var z number
 
 g := 11
 
-func hello(a number, b number) {
+func hello(a number, b number) number {
     z := 22 - a
 
-    z
-    log
+    return z
 }
 
-hello(g, 10)
+x = hello(g, 10)
+
+x
+log
 
 if x >= 1999 {
     var l bool

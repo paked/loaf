@@ -108,7 +108,6 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_SET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_GET_GLOBAL);
     SIMPLE_INSTRUCTION(OP_LOG);
-    SIMPLE_INSTRUCTION(OP_RETURN);
     SIMPLE_INSTRUCTION(OP_NEGATE);
 
     SIMPLE_INSTRUCTION(OP_ADD);
@@ -128,6 +127,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
     SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
     SIMPLE_INSTRUCTION2(OP_CALL);
+    SIMPLE_INSTRUCTION2(OP_RETURN);
 
     case OP_CONSTANT:
       {
@@ -158,13 +158,15 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
 }
 
 void hunk_disassemble(Hunk* hunk, const char* name) {
-  logf("=== %s ===\n", name);
+  logf("+++ %s +++\n", name);
 
   int i = 0;
 
   while (i < hunk_getCount(hunk)) {
-    i += hunk_disassembleInstruction(hunk, i);
+    i = hunk_disassembleInstruction(hunk, i);
   }
+
+  logf("--- %s ---\n", name);
 }
 
 enum ProgramResult : uint32 {
@@ -252,7 +254,19 @@ ProgramResult vm_run(VM* vm) {
     switch (in) {
       case OP_RETURN:
         {
+          int amount = (int) READ();
+
+          Value ret = {};
+
+          if (amount != 0) {
+            ret = vm_stack_pop(vm);
+          }
+
           vm->stackTop = frame->originalStackPosition;
+
+          if (amount != 0) {
+            vm_stack_push(vm, ret);
+          }
 
           vm->frameCount -= 1;
         } break;
@@ -324,17 +338,15 @@ ProgramResult vm_run(VM* vm) {
 
           Frame f = {};
 
-          {
-            for (int i = arity - 1; i >= 0; i--) {
-              Value param = vm_stack_pop(vm);
+          for (int i = arity - 1; i >= 0; i--) {
+            Value param = vm_stack_pop(vm);
 
-              f.slots[i] = param;
-            }
+            f.slots[i] = param;
           }
 
-          Hunk* hunk = func.as.function.hunk;
+          Hunk* newHunk = func.as.function.hunk;
 
-          f.hunk = hunk;
+          f.hunk = newHunk;
           f.ip = f.hunk->code;
           f.originalStackPosition = vm->stackTop;
 

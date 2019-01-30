@@ -106,7 +106,8 @@ enum ASTNodeType : uint32 {
   AST_NODE_VALUE,
   AST_NODE_NUMBER,
   AST_NODE_LOG,
-  AST_NODE_DECLARATION
+  AST_NODE_DECLARATION,
+  AST_NODE_RETURN,
 };
 
 struct ASTNode;
@@ -154,6 +155,8 @@ array_for(Parameter);
 struct ASTNode_Function {
   Token identifier;
 
+  Token returnType;
+
   ASTNode* block;
 
   array(Parameter) parameters;
@@ -163,6 +166,10 @@ struct ASTNode_FunctionCall {
   Token identifier;
 
   array(ASTNode) args;
+};
+
+struct ASTNode_Return {
+  ASTNode* child;
 };
 
 struct ASTNode_Log {};
@@ -186,6 +193,8 @@ struct ASTNode {
 
     ASTNode_Binary And;
     ASTNode_Binary Or;
+
+    ASTNode_Return Return;
 
     ASTNode_Binary equality;
 
@@ -348,13 +357,15 @@ ASTNode ast_makeIf(ASTNode condition, ASTNode block) {
   return node;
 }
 
-ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block, array(Parameter) params) {
+ASTNode ast_makeFunctionDeclaration(Token ident, ASTNode block, array(Parameter) params, Token ret) {
   assert(block.type == AST_NODE_ROOT);
 
   ASTNode node = {};
   node.type = AST_NODE_FUNCTION_DECLARATION;
 
   node.functionDeclaration.parameters = params;
+
+  node.functionDeclaration.returnType = ret;
 
   node.functionDeclaration.identifier = ident;
   node.functionDeclaration.block = (ASTNode*) malloc(sizeof(block));
@@ -386,6 +397,18 @@ ASTNode ast_makeDeclaration(Token ident, Token type) {
   node.type = AST_NODE_DECLARATION;
   node.declaration.identifier = ident;
   node.declaration.type = type;
+
+  return node;
+}
+
+ASTNode ast_makeReturn(ASTNode expr, Token t) {
+  ASTNode node = {};
+  node.type = AST_NODE_RETURN;
+
+  node.line = t.line;
+
+  node.Return.child = (ASTNode*) malloc(sizeof(expr));
+  *node.Return.child = expr;
 
   return node;
 }
@@ -483,6 +506,9 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         if (!ast_writeBytecode(node->functionDeclaration.block, h, &s)) {
           return false;
         }
+
+        hunk_write(h, OP_RETURN, 0);
+        hunk_write(h, 0, 0);
 
         Value funcVal = value_make(h);
 
@@ -646,6 +672,15 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
     case AST_NODE_LOG:
       {
         hunk_write(hunk, OP_LOG, node->line);
+      } break;
+    case AST_NODE_RETURN:
+      {
+        if (!ast_writeBytecode(node->Return.child, hunk, scope)) {
+          return false;
+        }
+
+        hunk_write(hunk, OP_RETURN, node->line);
+        hunk_write(hunk, 1, node->line);
       } break;
     default:
       {

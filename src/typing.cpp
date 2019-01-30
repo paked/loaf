@@ -22,7 +22,7 @@ struct Symbol_Atomic {
 };
 
 struct Symbol_Function {
-//  Symbol* returnType;
+  Symbol* returnType;
 
   array(Symbol*) parameterTypes;
 };
@@ -73,7 +73,7 @@ Symbol symbol_makeDeclaration(char* str, int strLen, Symbol* type) {
   return sym;
 }
 
-Symbol symbol_makeFunction(char* str, int strLen, array(Symbol*) paramTypes) {
+Symbol symbol_makeFunction(char* str, int strLen, array(Symbol*) paramTypes, Symbol* ret) {
   Symbol sym = {};
   sym.type = SYMBOL_FUNCTION;
 
@@ -81,6 +81,7 @@ Symbol symbol_makeFunction(char* str, int strLen, array(Symbol*) paramTypes) {
   sym.nameLen = strLen;
 
   sym.info.function.parameterTypes = paramTypes;
+  sym.info.function.returnType = ret;
 
   return sym;
 }
@@ -144,6 +145,10 @@ bool symbolTable_get(SymbolTable* symbols, char* name, int nameLen, Symbol** sym
   }
 
   return false;
+}
+
+bool symbolTable_get(SymbolTable* symbols, Token t, Symbol** sym) {
+  return symbolTable_get(symbols, t.start, t.len, sym);
 }
 
 SymbolTable symbolTable_makeDefaults() {
@@ -305,6 +310,26 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         return true;
       } break;
+    case AST_NODE_FUNCTION_CALL:
+      {
+        Symbol* func = 0;
+
+        if (!symbolTable_get(symbols, node->functionCall.identifier, &func)) {
+          printf("can't find function\n");
+
+          return false;
+        }
+
+        if (func->info.function.returnType == 0) {
+          printf("function does not have a return type\n");
+
+          return false;
+        }
+
+        *sym = func->info.function.returnType;
+
+        return true;
+      } break;
     default:
       {
         printf("can't get type of AST node type: %d\n", node->type);
@@ -420,9 +445,20 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           array_Symbolp_add(&params, type);
         }
 
+        Symbol* ret = 0;
+
+        Token returnType = node->functionDeclaration.returnType;
+        if (returnType.len != 0) {
+          if (!symbolTable_get(symbols, returnType.start, returnType.len, &ret)) {
+            printf("unknown ret: %.*s\n", returnType.len, returnType.start);
+
+            return false;
+          }
+        }
+
         Token tok = node->functionDeclaration.identifier;
 
-        Symbol function = symbol_makeFunction(tok.start, tok.len, params);
+        Symbol function = symbol_makeFunction(tok.start, tok.len, params, ret);
         if (!symbolTable_add(symbols, &function)) {
           printf("symbol '%.*s' already exists in current scope\n", function.nameLen, function.name);
 
@@ -506,6 +542,8 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
         return typeCheck(node->cIf.block, &childSymbols);
       } break;
+    case AST_NODE_RETURN:
+      // TODO(harrison): typecheck!
     case AST_NODE_IDENTIFIER:
     case AST_NODE_LOG:
       {

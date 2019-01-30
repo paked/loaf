@@ -268,6 +268,21 @@ bool parser_parseExpression(Parser* p, ASTNode* node) {
 
 bool parser_parseBlock(Parser* p, ASTNode* node);
 
+bool parser_parseReturn(Parser* p, ASTNode* node) {
+  Token tok;
+  if (parser_expect(p, TOKEN_RETURN, &tok)) {
+    ASTNode expr = {};
+
+    if (parser_parseExpression(p, &expr)) {
+      *node = ast_makeReturn(expr, tok);
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool parser_parseStatement(Parser* p, ASTNode* node) {
   Token tIdent;
   if (parser_expect(p, TOKEN_IDENTIFIER, &tIdent)) {
@@ -307,6 +322,9 @@ bool parser_parseStatement(Parser* p, ASTNode* node) {
         return true;
       }
     }
+    // TODO(harrison): typecheck!
+  } else if (parser_parseReturn(p, node)) {
+    return true;
   }
 
   return false;
@@ -360,10 +378,15 @@ bool parser_parseFunctionDeclaration(Parser* p, ASTNode* node) {
         }
 
         if (parser_expect(p, TOKEN_BRACKET_CLOSE)) {
+          Token ret = {};
+
+          // optional return type
+          parser_expect(p, TOKEN_IDENTIFIER, &ret);
+
           ASTNode source;
 
           if (parser_parseBlock(p, &source)) {
-            *node = ast_makeFunctionDeclaration(ident, source, parameters);
+            *node = ast_makeFunctionDeclaration(ident, source, parameters, ret);
 
             return true;
           }

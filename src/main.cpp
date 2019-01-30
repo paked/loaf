@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
   }
 
   hunk_write(&hunk, OP_RETURN, 0);
+  hunk_write(&hunk, 0, 0);
 
   VM vm = {0};
 
@@ -126,8 +127,6 @@ int main(int argc, char** argv) {
     logf("Program failed executing...\n");
     return 1;
   }
-
-  logf("Program finished executing...\n");
 
   return 0;
 }
