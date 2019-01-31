@@ -186,13 +186,13 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
         }
 
         if (lhs->id != rhs->id) {
-          printf("left and right hand side are different types\n");
+          logf("left and right hand side are different types\n");
 
           return false;
         }
 
         if (lhs->id != Symbol_Atomic_Number) {
-          printf("one of the types is not a number\n");
+          logf("one of the types is not a number\n");
 
           return false;
         }
@@ -219,7 +219,7 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
         }
 
         if (lhs->id != rhs->id) {
-          printf("left and right hand side are different types\n");
+          logf("left and right hand side are different types\n");
 
           return false;
         }
@@ -243,13 +243,13 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
         }
 
         if (lhs->id != rhs->id) {
-          printf("left and right hand side are different types\n");
+          logf("left and right hand side are different types\n");
 
           return false;
         }
 
         if (lhs->id != Symbol_Atomic_Bool) {
-          printf("one (or more) of the types is not a boolean\n");
+          logf("one (or more) of the types is not a boolean\n");
 
           return false;
         }
@@ -272,7 +272,7 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
 
         Symbol* decl = 0;
         if (!symbolTable_get(symbols, tok.start, tok.len, &decl)) {
-          printf("ident doesn't exist\n");
+          logf("ident doesn't exist\n");
           return false;
         }
 
@@ -315,13 +315,13 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
         Symbol* func = 0;
 
         if (!symbolTable_get(symbols, node->functionCall.identifier, &func)) {
-          printf("can't find function\n");
+          logf("can't find function\n");
 
           return false;
         }
 
         if (func->info.function.returnType == 0) {
-          printf("function does not have a return type\n");
+          logf("function does not have a return type\n");
 
           return false;
         }
@@ -332,7 +332,7 @@ bool getType(ASTNode* node, SymbolTable* symbols, Symbol** sym) {
       } break;
     default:
       {
-        printf("can't get type of AST node type: %d\n", node->type);
+        logf("can't get type of AST node type: %d\n", node->type);
       } break;
   }
 
@@ -366,7 +366,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         {
           Token tok = node->declaration.type;
           if (!symbolTable_get(symbols, tok.start, tok.len, &type)) {
-            printf("can't find type: %.*s\n", tok.len, tok.start);
+            logf("can't find type: %.*s\n", tok.len, tok.start);
 
             return false;
           }
@@ -397,7 +397,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         if (lhs->id != rhs->id) {
-          printf("differing types\n");
+          logf("differing types\n");
 
           return false;
         }
@@ -417,12 +417,14 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
         Symbol identifier = symbol_makeDeclaration(tok.start, tok.len, type);
         if (!symbolTable_add(symbols, &identifier)) {
-          printf("symbol '%.*s' already exists in current scope\n", identifier.nameLen, identifier.name);
+          logf("symbol '%.*s' already exists in current scope\n", identifier.nameLen, identifier.name);
 
           return false;
         }
 
-        printf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
+#ifdef DEBUG
+        logf("declared: '%.*s' of type %.*s\n", identifier.nameLen, identifier.name, type->nameLen, type->name);
+#endif
 
         return true;
       } break;
@@ -435,7 +437,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
           Symbol* type = 0;
           if (!symbolTable_get(symbols, p.type.start, p.type.len, &type)) {
-            printf("unknown type: %.*s\n", p.type.len, p.type.start);
+            logf("unknown type: %.*s\n", p.type.len, p.type.start);
 
             return false;
           }
@@ -450,7 +452,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         Token returnType = node->functionDeclaration.returnType;
         if (returnType.len != 0) {
           if (!symbolTable_get(symbols, returnType.start, returnType.len, &ret)) {
-            printf("unknown ret: %.*s\n", returnType.len, returnType.start);
+            logf("unknown ret: %.*s\n", returnType.len, returnType.start);
 
             return false;
           }
@@ -460,7 +462,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
         Symbol function = symbol_makeFunction(tok.start, tok.len, params, ret);
         if (!symbolTable_add(symbols, &function)) {
-          printf("symbol '%.*s' already exists in current scope\n", function.nameLen, function.name);
+          logf("symbol '%.*s' already exists in current scope\n", function.nameLen, function.name);
 
           return false;
         }
@@ -472,7 +474,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         me.nameLen = 0;
 
         if (!symbolTable_add(&childSymbols, &me)) {
-          printf("can't add this\n");
+          logf("can't add this\n");
 
           return false;
         }
@@ -482,7 +484,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           ASTNode temp = ast_makeDeclaration(p.identifier, p.type);
 
           if (!typeCheck(&temp, &childSymbols)) {
-            printf("something failed setting up a parameter\n");
+            logf("something failed setting up a parameter\n");
 
             return false;
           }
@@ -497,20 +499,20 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         Token ident = node->functionCall.identifier;
         {
           if (!symbolTable_get(symbols, ident.start, ident.len, &function)) {
-            printf("can't get symbol\n: %.*s", ident.len, ident.start);
+            logf("can't get symbol\n: %.*s", ident.len, ident.start);
 
             return false;
           }
         }
 
         if (function->type != SYMBOL_FUNCTION) {
-          printf("symbol %.*s is not a function\n", ident.len, ident.start);
+          logf("symbol %.*s is not a function\n", ident.len, ident.start);
 
           return false;
         }
 
         if (array_count(function->info.function.parameterTypes) != array_count(node->functionCall.args)) {
-          printf("argument count mismatch\n");
+          logf("argument count mismatch\n");
 
           return false;
         }
@@ -525,7 +527,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           }
 
           if (argType->id != paramType->id) {
-            printf("parameter has wrong type!\n");
+            logf("parameter has wrong type!\n");
 
             return false;
           }
@@ -541,7 +543,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         if (condType->id != Symbol_Atomic_Bool) {
-          printf("expression does not evaluate to a bool\n");
+          logf("expression does not evaluate to a bool\n");
 
           return false;
         }
@@ -556,13 +558,13 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         Symbol* me = 0;
 
         if (!symbolTable_get(symbols, 0, 0, &me)) {
-          printf("can't get this\n");
+          logf("can't get this\n");
 
           return false;
         }
 
         if (me->type != SYMBOL_FUNCTION) {
-          printf("this is not a function\n");
+          logf("this is not a function\n");
 
           return false;
         }
@@ -573,7 +575,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         }
 
         if (me->info.function.returnType->id != retType->id) {
-          printf("function and return type are different\n");
+          logf("function and return type are different\n");
 
           return false;
         }
@@ -588,7 +590,7 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
       } break;
     default:
       {
-        printf("can't typecheck: %d\n", node->type);
+        logf("can't typecheck: %d\n", node->type);
       }
   }
 

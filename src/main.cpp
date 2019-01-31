@@ -75,11 +75,7 @@ int main(int argc, char** argv) {
 
     array_Token_add(&tokens, t);
 
-    logf("val: %.*s (%d)\n", t.len, t.start, t.type);
-
     if (t.type == TOKEN_EOF) {
-      logf("Got through all tokens\n");
-
       break;
     }
   }

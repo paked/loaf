@@ -7,7 +7,7 @@ g := 11
 func hello(a number, b number) number {
     z := 22 - a
 
-    return z
+    return z + 2
 }
 
 x = hello(g, 10)

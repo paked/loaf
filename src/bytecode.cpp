@@ -242,6 +242,7 @@ ProgramResult vm_run(VM* vm) {
 
     for (Value* v = vm->stack; v != (vm->stackTop); v += 1) {
       logf("stack: ");
+
       value_logln(*v);
     }
 
@@ -318,8 +319,6 @@ ProgramResult vm_run(VM* vm) {
           }
 
           vm_stack_push(vm, func);
-
-          value_logln(func);
         } break;
       case OP_CALL:
         {
