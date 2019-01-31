@@ -468,6 +468,15 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         SymbolTable childSymbols = {};
         symbolTable_init(&childSymbols, &DefaultSymbols);
 
+        Symbol me = function;
+        me.nameLen = 0;
+
+        if (!symbolTable_add(&childSymbols, &me)) {
+          printf("can't add this\n");
+
+          return false;
+        }
+
         for (int i = 0; i < (int) array_count(node->functionDeclaration.parameters); i++) {
           Parameter p = node->functionDeclaration.parameters[i];
           ASTNode temp = ast_makeDeclaration(p.identifier, p.type);
@@ -543,6 +552,34 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         return typeCheck(node->cIf.block, &childSymbols);
       } break;
     case AST_NODE_RETURN:
+      {
+        Symbol* me = 0;
+
+        if (!symbolTable_get(symbols, 0, 0, &me)) {
+          printf("can't get this\n");
+
+          return false;
+        }
+
+        if (me->type != SYMBOL_FUNCTION) {
+          printf("this is not a function\n");
+
+          return false;
+        }
+
+        Symbol* retType = 0;
+        if (!getType(node->Return.child, symbols, &retType)) {
+          return false;
+        }
+
+        if (me->info.function.returnType->id != retType->id) {
+          printf("function and return type are different\n");
+
+          return false;
+        }
+
+        return true;
+      } break;
       // TODO(harrison): typecheck!
     case AST_NODE_IDENTIFIER:
     case AST_NODE_LOG:
