@@ -470,8 +470,21 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
         SymbolTable childSymbols = {};
         symbolTable_init(&childSymbols, &DefaultSymbols);
 
-        Symbol me = function;
-        me.nameLen = 0;
+        // TODO(harrison): clean this the fuck up
+        if (!symbolTable_add(&childSymbols, &function)) {
+          logf("can't add this\n");
+
+          return false;
+        }
+
+        Symbol* f = 0;
+        if (!symbolTable_get(&childSymbols, tok, &f)) {
+          logf("not clue whtf\n");
+
+          return false;
+        }
+
+        Symbol me = symbol_makeDeclaration(0, 0, f);
 
         if (!symbolTable_add(&childSymbols, &me)) {
           logf("can't add this\n");
@@ -563,18 +576,26 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           return false;
         }
 
-        if (me->type != SYMBOL_FUNCTION) {
+        if (me->type != SYMBOL_DECLARATION) {
+          logf("not in function: can't get 'this' type\n");
+
+          return false;
+        }
+
+        if (me->info.declaration.typeSymbol->type != SYMBOL_FUNCTION) {
           logf("this is not a function\n");
 
           return false;
         }
+
+        Symbol* realRetType = me->info.declaration.typeSymbol;
 
         Symbol* retType = 0;
         if (!getType(node->Return.child, symbols, &retType)) {
           return false;
         }
 
-        if (me->info.function.returnType->id != retType->id) {
+        if (realRetType->id != retType->id) {
           logf("function and return type are different\n");
 
           return false;

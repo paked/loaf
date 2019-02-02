@@ -1,26 +1,12 @@
-x := 1337
-var y bool
-var z number
+func fib(n number) number {
+    if (n == 0 || n == 1) {
+        return n
+    }
 
-g := 11
-
-func hello(a number, b number) number {
-    z := 22 - a
-
-    return z + 2
+    return fib(n - 1) + fib(n - 2)
 }
 
-x = hello(g, 10)
+n := fib(8);
 
-x
+n
 log
-
-if x >= 1999 {
-    var l bool
-    var m number
-
-    m = m + x
-
-    m
-    log
-}
