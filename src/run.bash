@@ -11,4 +11,4 @@ fi
 BUILD_DIR=$PROJECT_DIR/build
 FILE=$PROJECT_DIR/example.ls
 
-$BUILD_DIR/loaf $FILE
+time $BUILD_DIR/loaf $FILE

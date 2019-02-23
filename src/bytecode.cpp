@@ -176,7 +176,7 @@ enum ProgramResult : uint32 {
 };
 
 #define VM_STACK_MAX (256)
-#define VM_FRAME_MAX (32)
+#define VM_FRAME_MAX (64)
 #define VM_LOCALS_MAX (32)
 
 struct Frame {

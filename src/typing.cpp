@@ -603,7 +603,6 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
 
         return true;
       } break;
-      // TODO(harrison): typecheck!
     case AST_NODE_IDENTIFIER:
     case AST_NODE_LOG:
       {

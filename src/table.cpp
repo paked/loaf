@@ -10,7 +10,7 @@ bool tableEntry_sameKey(TableEntry left, TableEntry right) {
     return false;
   }
 
-  return strncmp(left.key.str, right.key.str, left.key.len);
+  return strncmp(left.key.str, right.key.str, left.key.len) == 0;
 }
 
 #define TABLE_MAX_LOAD (0.7)
@@ -112,25 +112,28 @@ bool table_get(Table* t, String key, Value* v) {
   }
 
   // TODO(harrison): Is this too slow? Benchmark
-  int64 hash = table_hash(key);
-
-  int64 index = hash % t->capacity;
+  int64 index = key.hash % t->capacity;
 
   for (int offset = 0; offset < t->capacity; offset += 1) {
     int64 i = (index + offset) % t->capacity;
     TableEntry entry = t->entries[i];
 
     if (entry.hash == 0) {
+      printf("hello\n");
       continue;
     }
 
-    if (key.len == entry.key.len && hash == entry.hash && strncpy(key.str, entry.key.str, key.len)) {
-      if (v != 0) {
-        *v = t->entries[i].val;
-      }
+    if (key.len == entry.key.len && key.hash == entry.hash) {
+      if (strncmp(key.str, entry.key.str, key.len) == 0) {
+        if (v != 0) {
+          *v = t->entries[i].val;
+        }
 
-      return true;
+        return true;
+      }
     }
+
+    printf("fuck\n");
   }
 
   return false;

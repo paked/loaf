@@ -22,7 +22,11 @@ struct Function {
 struct String {
   char* str;
   int len;
+
+  int64 hash;
 };
+
+uint64 table_hash(String str);
 
 void string_make(String* s, char* start, int len) {
   s->len = len + 1;
@@ -31,6 +35,8 @@ void string_make(String* s, char* start, int len) {
 
   strncpy(s->str, start, len);
   s->str[len] = '\0';
+
+  s->hash = table_hash(*s);
 }
 
 struct Value {
@@ -166,5 +172,3 @@ bool value_equals(Value left, Value right) {
 
   return false;
 }
-
-

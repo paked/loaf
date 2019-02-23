@@ -6,7 +6,7 @@ func fib(n number) number {
     return fib(n - 1) + fib(n - 2)
 }
 
-n := fib(8);
+n := fib(30);
 
 n
 log
