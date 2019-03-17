@@ -124,7 +124,7 @@ bool table_get(Table* t, String key, Value* v) {
       continue;
     }
 
-    if (key.len == entry.key.len && hash == entry.hash && strncpy(key.str, entry.key.str, key.len)) {
+    if (key.len == entry.key.len && hash == entry.hash && strncmp(key.str, entry.key.str, key.len) == 0) {
       if (v != 0) {
         *v = t->entries[i].val;
       }
