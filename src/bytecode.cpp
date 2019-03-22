@@ -45,6 +45,7 @@ enum OPCode : Instruction {
   OP_TEST_OR,   // ||
   OP_TEST_AND,  // &&
 
+  OP_JUMP,
   OP_JUMP_IF_FALSE,
 
   OP_LOG,
@@ -125,6 +126,7 @@ int hunk_disassembleInstruction(Hunk* hunk, int offset) {
     SIMPLE_INSTRUCTION(OP_TEST_OR);
 
     SIMPLE_INSTRUCTION2(OP_SET_LOCAL);
+    SIMPLE_INSTRUCTION2(OP_JUMP);
     SIMPLE_INSTRUCTION2(OP_JUMP_IF_FALSE);
     SIMPLE_INSTRUCTION2(OP_CALL);
     SIMPLE_INSTRUCTION2(OP_RETURN);
@@ -297,6 +299,8 @@ ProgramResult vm_run(VM* vm) {
           Value name = vm_stack_pop(vm);
 
           if (name.type != VALUE_STRING) {
+            logf("ERROR: Expecting name in string format\n");
+
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
@@ -307,6 +311,8 @@ ProgramResult vm_run(VM* vm) {
           Value name = vm_stack_pop(vm);
 
           if (name.type != VALUE_STRING) {
+            logf("ERROR: Expecting name in string format\n");
+
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
@@ -326,6 +332,8 @@ ProgramResult vm_run(VM* vm) {
           int arity = (int) READ();
 
           if (func.type != VALUE_FUNCTION) {
+            logf("ERROR Expecting func to be a function\n");
+
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
@@ -360,6 +368,12 @@ ProgramResult vm_run(VM* vm) {
           if (v.type == VALUE_BOOL && v.as.boolean == false) {
             frame->ip += jumpOffset;
           }
+        } break;
+      case OP_JUMP:
+        {
+          Instruction jumpOffset = READ();
+
+          frame->ip += jumpOffset;
         } break;
       case OP_NEGATE:
         {
@@ -401,6 +415,7 @@ ProgramResult vm_run(VM* vm) {
           Value b = vm_stack_pop(vm); \
           Value a = vm_stack_pop(vm); \
           if (!VALUE_IS_NUMBER(a) || !VALUE_IS_NUMBER(b)) { \
+            logf("ERROR: values should be numbers\n");\
             return PROGRAM_RESULT_RUNTIME_ERROR; \
           } \
           Value c = {}; \
@@ -419,6 +434,8 @@ ProgramResult vm_run(VM* vm) {
           Value a = vm_stack_pop(vm);
 
           if (!VALUE_IS_BOOL(a) || !VALUE_IS_BOOL(b)) {
+            logf("ERROR: values should be bools\n");
+
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 
@@ -435,6 +452,8 @@ ProgramResult vm_run(VM* vm) {
           Value a = vm_stack_pop(vm);
 
           if (!VALUE_IS_BOOL(a) || !VALUE_IS_BOOL(b)) {
+            logf("ERROR: values should be bools\n");
+
             return PROGRAM_RESULT_RUNTIME_ERROR;
           }
 

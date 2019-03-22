@@ -113,6 +113,10 @@ int main(int argc, char** argv) {
   hunk_write(&hunk, OP_RETURN, 0);
   hunk_write(&hunk, 0, 0);
 
+#ifdef DEBUG
+  hunk_disassemble(&hunk, "main");
+#endif
+
   VM vm = {0};
 
   vm_load(&vm, &hunk);

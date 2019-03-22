@@ -138,6 +138,7 @@ struct ASTNode_If {
   ASTNode* condition;
 
   ASTNode* block;
+  ASTNode* elseBlock;
 };
 
 struct Parameter {
@@ -354,6 +355,26 @@ ASTNode ast_makeIf(ASTNode condition, ASTNode block) {
   node.cIf.block = (ASTNode*) malloc(sizeof(block));
   *node.cIf.block = block;
 
+  node.cIf.elseBlock = 0;
+
+  return node;
+}
+
+ASTNode ast_makeIf(ASTNode condition, ASTNode block, ASTNode elseBlock) {
+  assert(block.type == AST_NODE_ROOT && elseBlock.type == AST_NODE_ROOT);
+
+  ASTNode node = {};
+  node.type = AST_NODE_IF;
+
+  node.cIf.condition = (ASTNode*) malloc(sizeof(condition));
+  *node.cIf.condition = condition;
+
+  node.cIf.block = (ASTNode*) malloc(sizeof(block));
+  *node.cIf.block = block;
+
+  node.cIf.elseBlock = (ASTNode*) malloc(sizeof(elseBlock));
+  *node.cIf.elseBlock = elseBlock;
+
   return node;
 }
 
@@ -557,15 +578,34 @@ bool ast_writeBytecode(ASTNode* node, Hunk* hunk, Scope* scope) {
         hunk_write(hunk, OP_JUMP_IF_FALSE, 0);
         hunk_write(hunk, 0, 0);
 
-        Instruction offsetPos = hunk_getCount(hunk) - 1;
+        Instruction nextStatementPos = hunk_getCount(hunk) - 1;
 
         if (!ast_writeBytecode(node->cIf.block, hunk, &inner)) {
           return false;
         }
 
-        Instruction ifEndPos = hunk_getCount(hunk) - 1;
+        if (node->cIf.elseBlock != 0) {
+          Scope elseInner = {};
+          scope_init(&elseInner, scope);
 
-        hunk->code[offsetPos] = ifEndPos - offsetPos;
+          hunk_write(hunk, OP_JUMP, 0);
+          hunk_write(hunk, 0, 0);
+
+          Instruction exitBlockPos = hunk_getCount(hunk) - 1;
+
+          hunk->code[nextStatementPos] = hunk_getCount(hunk) - 1 - nextStatementPos;
+
+          if (!ast_writeBytecode(node->cIf.elseBlock, hunk, &elseInner)) {
+            return false;
+          }
+
+          Instruction endOfElsePos = hunk_getCount(hunk) - 1;
+          hunk->code[exitBlockPos] = endOfElsePos - exitBlockPos;
+        } else {
+          Instruction ifEndPos = hunk_getCount(hunk) - 1;
+
+          hunk->code[nextStatementPos] = ifEndPos - nextStatementPos;
+        }
        } break;
     case AST_NODE_NUMBER:
       {

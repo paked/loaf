@@ -1,3 +1,4 @@
+/*
 func fib(n number) number {
     if (n == 0 || n == 1) {
         return n
@@ -7,6 +8,30 @@ func fib(n number) number {
 }
 
 n := fib(8);
+*/
 
-n
-log
+n := 2
+
+if n == 0 {
+    g := 2
+
+    g
+    log
+
+    f := 13
+
+    f
+    log
+} else {
+    z := 100
+
+    z
+    log
+}
+
+if n == 2 {
+    t := 33
+
+    t
+    log
+}

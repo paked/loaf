@@ -561,10 +561,25 @@ bool typeCheck(ASTNode* node, SymbolTable* symbols) {
           return false;
         }
 
-        SymbolTable childSymbols = {};
-        symbolTable_init(&childSymbols, symbols);
+        {
+          SymbolTable childSymbols = {};
+          symbolTable_init(&childSymbols, symbols);
 
-        return typeCheck(node->cIf.block, &childSymbols);
+          if (!typeCheck(node->cIf.block, &childSymbols)) {
+            return false;
+          }
+        }
+
+        if (node->cIf.elseBlock != 0) {
+          SymbolTable childSymbols = {};
+          symbolTable_init(&childSymbols, symbols);
+
+          if (!typeCheck(node->cIf.elseBlock, &childSymbols)) {
+            return false;
+          }
+        }
+
+        return true;
       } break;
     case AST_NODE_RETURN:
       {

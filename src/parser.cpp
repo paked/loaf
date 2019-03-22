@@ -337,9 +337,19 @@ bool parser_parseIf(Parser* p, ASTNode* node) {
         ASTNode block = {};
 
         if (parser_parseBlock(p, &block)) {
-          *node = ast_makeIf(condition, block);
+          if (parser_expect(p, TOKEN_ELSE)) {
+            ASTNode elseBlock = {};
 
-          return true;
+            if (parser_parseBlock(p, &elseBlock)) {
+              *node = ast_makeIf(condition, block, elseBlock);
+
+              return true;
+            }
+          } else {
+            *node = ast_makeIf(condition, block);
+
+            return true;
+          }
         }
       }
   }

@@ -166,5 +166,3 @@ bool value_equals(Value left, Value right) {
 
   return false;
 }
-
-
